@@ -2,7 +2,7 @@ package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +52,7 @@ class DataSourceTransactionManagerTest {
         Connection bound = (Connection) context.getResources().get(dataSource);
 
         context.getCallbacks()
-                .forEach(s -> s.afterCompletion(TransactionCallback.CompletionStatus.COMMITTED));
+                .forEach(s -> s.afterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED));
 
         assertTrue(bound.isClosed());
     }

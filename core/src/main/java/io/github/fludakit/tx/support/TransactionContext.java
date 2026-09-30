@@ -142,7 +142,7 @@ public final class TransactionContext {
 
     private final boolean actualTransactionActive;
     private final Map<Object, Object> resources = new IdentityHashMap<>();
-    private final List<TransactionCallback> callbacks = new ArrayList<>();
+    private final List<TransactionSynchronization> callbacks = new ArrayList<>();
     private final TransactionEventStore eventStore = new TransactionEventStore();
     private volatile boolean rollbackOnly;
     private volatile boolean completed;
@@ -207,7 +207,7 @@ public final class TransactionContext {
         return null;
     }
 
-    public void registerCallback(TransactionCallback callback) {
+    public void registerCallback(TransactionSynchronization callback) {
         callbacks.add(callback);
     }
 
@@ -215,30 +215,30 @@ public final class TransactionContext {
         return resources;
     }
 
-    public List<TransactionCallback> getCallbacks() {
+    public List<TransactionSynchronization> getCallbacks() {
         return callbacks;
     }
 
     public void triggerBeforeCommit(boolean readOnly) {
-        for (TransactionCallback callback : callbacks) {
+        for (TransactionSynchronization callback : callbacks) {
             callback.beforeCommit(readOnly);
         }
     }
 
     public void triggerBeforeCompletion() {
-        for (TransactionCallback callback : callbacks) {
+        for (TransactionSynchronization callback : callbacks) {
             callback.beforeCompletion();
         }
     }
 
     public void triggerAfterCommit() {
-        for (TransactionCallback callback : callbacks) {
+        for (TransactionSynchronization callback : callbacks) {
             callback.afterCommit();
         }
     }
 
-    public void triggerAfterCompletion(TransactionCallback.CompletionStatus status) {
-        for (TransactionCallback callback : callbacks) {
+    public void triggerAfterCompletion(TransactionSynchronization.CompletionStatus status) {
+        for (TransactionSynchronization callback : callbacks) {
             callback.afterCompletion(status);
         }
     }

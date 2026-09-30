@@ -4,7 +4,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import jakarta.persistence.*;
 import org.junit.jupiter.api.*;
 
@@ -110,9 +110,9 @@ class JpaTransactionManagerTest {
         EntityManager em = (EntityManager) context.getResources().get(emf);
         assertTrue(em.isOpen());
 
-        List<TransactionCallback> syncs = context.getCallbacks();
+        List<TransactionSynchronization> syncs = context.getCallbacks();
         assertFalse(syncs.isEmpty());
-        syncs.getFirst().afterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
+        syncs.getFirst().afterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED);
 
         assertFalse(em.isOpen());
     }
@@ -150,7 +150,7 @@ class JpaTransactionManagerTest {
         } catch (Exception ignored) {
         }
         context.getCallbacks().forEach(
-                s -> s.afterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK));
+                s -> s.afterCompletion(TransactionSynchronization.CompletionStatus.ROLLED_BACK));
     }
 
     @Entity

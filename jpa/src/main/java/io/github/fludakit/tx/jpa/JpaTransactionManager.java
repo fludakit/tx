@@ -4,7 +4,7 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 
@@ -166,7 +166,7 @@ public class JpaTransactionManager implements PlatformTransactionManager {
         return em;
     }
 
-    private static final class EntityManagerSynchronization implements TransactionCallback {
+    private static final class EntityManagerSynchronization implements TransactionSynchronization {
 
         private final EntityManager entityManager;
 

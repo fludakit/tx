@@ -4,7 +4,7 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -78,7 +78,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
         return connection;
     }
 
-    private static final class ConnectionSynchronization implements TransactionCallback {
+    private static final class ConnectionSynchronization implements TransactionSynchronization {
 
         private final Connection connection;
 

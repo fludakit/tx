@@ -1,7 +1,7 @@
 package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 
@@ -126,7 +126,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         return delegate.getParentLogger();
     }
 
-    private static final class JoiningSynchronization implements TransactionCallback {
+    private static final class JoiningSynchronization implements TransactionSynchronization {
 
         private final Connection connection;
 

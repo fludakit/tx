@@ -1,6 +1,6 @@
 package io.github.fludakit.tx;
 
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 import org.junit.jupiter.api.Test;
@@ -55,7 +55,7 @@ class TransactionContextTest {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
             TransactionContext ctx = TransactionContextHolder.get();
             List<String> calls = new ArrayList<>();
-            ctx.registerCallback(new TransactionCallback() {
+            ctx.registerCallback(new TransactionSynchronization() {
                 @Override
                 public void beforeCommit(boolean readOnly) {
                     calls.add("beforeCommit");
@@ -80,7 +80,7 @@ class TransactionContextTest {
             ctx.triggerBeforeCommit(false);
             ctx.triggerBeforeCompletion();
             ctx.triggerAfterCommit();
-            ctx.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
+            ctx.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED);
 
             assertEquals(List.of("beforeCommit", "beforeCompletion", "afterCommit", "afterCompletion:COMMITTED"), calls);
             return null;

@@ -21,7 +21,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  *       resource (Connection, EntityManager, etc.) and bind it to the returned
  *       {@link TransactionContext} using {@link TransactionContext#bindResource(Object, Object)}.
  *       Use the resource owner (DataSource, EntityManagerFactory) as the key.</li>
- *   <li><b>Cleanup callback:</b> Register a {@link io.github.fludakit.tx.support.TransactionCallback}
+ *   <li><b>Cleanup callback:</b> Register a {@link io.github.fludakit.tx.support.TransactionSynchronization}
  *       to release the resource in {@code afterCompletion}. This ensures cleanup even if the
  *       transaction fails.</li>
  *   <li><b>Commit:</b> In {@link #commit(TransactionContext)}, retrieve the bound resource and
@@ -42,7 +42,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  *         
  *         TransactionContext context = new TransactionContext(true);
  *         context.bindResource(dataSource, conn);
- *         context.registerCallback(new TransactionCallback() {
+ *         context.registerCallback(new TransactionSynchronization() {
  *             @Override
  *             public void afterCompletion(CompletionStatus status) {
  *                 try { conn.close(); } catch (SQLException e) { /* log *\/ }
@@ -74,7 +74,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  * </ul>
  *
  * @see TransactionContext
- * @see io.github.fludakit.tx.support.TransactionCallback
+ * @see io.github.fludakit.tx.support.TransactionSynchronization
  * @see io.github.fludakit.tx.jdbc.DataSourceTransactionManager
  * @see io.github.fludakit.tx.jpa.JpaTransactionManager
  */

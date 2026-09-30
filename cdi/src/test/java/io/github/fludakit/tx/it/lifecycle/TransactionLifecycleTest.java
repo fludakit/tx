@@ -6,7 +6,7 @@ import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
@@ -116,7 +116,7 @@ class TransactionLifecycleTest {
                 throw beginFailure;
             }
             TransactionContext context = new TransactionContext(true);
-            context.getCallbacks().add(new TransactionCallback() {
+            context.getCallbacks().add(new TransactionSynchronization() {
                 @Override
                 public void afterCompletion(CompletionStatus status) {
                     afterCompletionCount++;

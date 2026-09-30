@@ -4,7 +4,7 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import java.lang.reflect.InvocationTargetException;
@@ -110,12 +110,12 @@ public class TransactionalInterceptor {
         try {
             transactionManager.commit(context);
         } catch (RuntimeException ex) {
-            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
+            context.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.UNKNOWN);
             context.markCompleted();
             throw ex;
         }
         context.triggerAfterCommit();
-        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
+        context.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED);
         eventNotifier.notify(TransactionPhase.AFTER_SUCCESS, context.getEventStore());
         eventNotifier.notify(TransactionPhase.AFTER_COMPLETION, context.getEventStore());
         context.markCompleted();
@@ -127,11 +127,11 @@ public class TransactionalInterceptor {
         try {
             transactionManager.rollback(context);
         } catch (RuntimeException ex) {
-            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
+            context.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.UNKNOWN);
             context.markCompleted();
             throw ex;
         }
-        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK);
+        context.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.ROLLED_BACK);
         eventNotifier.notify(TransactionPhase.AFTER_FAILURE, context.getEventStore());
         eventNotifier.notify(TransactionPhase.AFTER_COMPLETION, context.getEventStore());
         context.markCompleted();
