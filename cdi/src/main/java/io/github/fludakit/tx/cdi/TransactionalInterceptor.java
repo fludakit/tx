@@ -4,7 +4,6 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionEventNotifier;
 import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 

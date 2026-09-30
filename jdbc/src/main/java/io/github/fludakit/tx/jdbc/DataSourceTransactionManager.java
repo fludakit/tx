@@ -1,4 +1,4 @@
-package io.github.fludakit.tx.resourcelocal;
+package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;

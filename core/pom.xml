@@ -21,7 +21,6 @@
         <dependency>
             <groupId>jakarta.transaction</groupId>
             <artifactId>jakarta.transaction-api</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Test -->
@@ -64,34 +63,6 @@
                         </manifestEntries>
                     </archive>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.moditect</groupId>
-                <artifactId>moditect-maven-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>add-module-info</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>add-module-info</goal>
-                        </goals>
-                        <configuration>
-                            <module>
-                                <moduleInfo>
-                                    <name>fluda.tx.core</name>
-                                    <exports>
-                                        io.github.fludakit.tx;
-                                        io.github.fludakit.tx.support;
-                                    </exports>
-                                    <opens>
-                                        io.github.fludakit.tx;
-                                        io.github.fludakit.tx.support;
-                                    </opens>
-                                </moduleInfo>
-                            </module>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

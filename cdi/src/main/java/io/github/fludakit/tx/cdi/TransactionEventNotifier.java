@@ -1,4 +1,4 @@
-package io.github.fludakit.tx.support;
+package io.github.fludakit.tx.cdi;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import io.github.fludakit.tx.support.TransactionEventStore;
 import jakarta.enterprise.event.TransactionPhase;
 import jakarta.enterprise.inject.spi.ObserverMethod;
 

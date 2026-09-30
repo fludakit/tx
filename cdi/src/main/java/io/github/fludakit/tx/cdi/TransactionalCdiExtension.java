@@ -1,7 +1,6 @@
 package io.github.fludakit.tx.cdi;
 
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionEventNotifier;
 import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 
 import java.lang.annotation.Annotation;
