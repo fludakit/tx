@@ -2,7 +2,6 @@ package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
@@ -33,7 +32,7 @@ class TransactionAwareDataSourceProxyTest {
         Connection txConnection = dataSource.getConnection();
 
         TransactionContextHolder.call(new TransactionContext(true), () -> {
-            TransactionSynchronizationManager.bindResource(dataSource, txConnection);
+            TransactionContextHolder.get().bindResource(dataSource, txConnection);
             Connection got = proxy.getConnection();
             got.close();
             assertFalse(txConnection.isClosed(), "close must be suppressed inside a transaction");
@@ -51,7 +50,7 @@ class TransactionAwareDataSourceProxyTest {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
             proxy.getConnection();
 
-            Connection bound = (Connection) TransactionSynchronizationManager.getResource(dataSource);
+            Connection bound = (Connection) TransactionContextHolder.get().getResource(dataSource);
             assertNotNull(bound, "a connection must be bound on join");
             assertFalse(bound.getAutoCommit());
             bound.close();

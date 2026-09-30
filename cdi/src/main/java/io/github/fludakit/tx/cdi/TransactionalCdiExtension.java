@@ -1,7 +1,7 @@
 package io.github.fludakit.tx.cdi;
 
+import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
@@ -115,8 +115,9 @@ public class TransactionalCdiExtension implements Extension {
 
         @Override
         public void notify(Object event) {
-            if (TransactionSynchronizationManager.isActualTransactionActive()) {
-                TransactionContextHolder.get().getEventStore().add(event);
+            TransactionContext ctx = TransactionContextHolder.get();
+            if (ctx != null && ctx.isActualTransactionActive()) {
+                ctx.getEventStore().add(event);
             }
         }
     }

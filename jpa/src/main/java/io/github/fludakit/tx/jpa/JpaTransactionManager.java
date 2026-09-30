@@ -4,9 +4,9 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionSystemException;
+import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionSynchronization;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
+import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
@@ -78,10 +78,11 @@ public class JpaTransactionManager implements PlatformTransactionManager {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager() {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+        TransactionContext ctx = TransactionContextHolder.get();
+        if (ctx == null || !ctx.isActualTransactionActive()) {
             throw new IllegalStateException("No transaction is active");
         }
-        EntityManager em = TransactionSynchronizationManager.findResourceByType(EntityManager.class);
+        EntityManager em = ctx.findResourceByType(EntityManager.class);
         if (em == null) {
             throw new IllegalStateException("No EntityManager bound to the current transaction");
         }
@@ -99,15 +100,16 @@ public class JpaTransactionManager implements PlatformTransactionManager {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager(EntityManagerFactory emf) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+        TransactionContext ctx = TransactionContextHolder.get();
+        if (ctx == null || !ctx.isActualTransactionActive()) {
             throw new IllegalStateException("No transaction is active");
         }
-        EntityManager em = (EntityManager) TransactionSynchronizationManager.getResource(emf);
+        EntityManager em = (EntityManager) ctx.getResource(emf);
         if (em != null) {
             return em;
         }
         // Fallback for CDI proxy scenario: search by type
-        em = TransactionSynchronizationManager.findResourceByType(EntityManager.class);
+        em = ctx.findResourceByType(EntityManager.class);
         if (em != null) {
             return em;
         }
@@ -126,7 +128,7 @@ public class JpaTransactionManager implements PlatformTransactionManager {
             TransactionContext context = new TransactionContext(true);
             context.getResources().put(entityManagerFactory, em);
             context.getResources().put(dataSource, connection);
-            context.getSynchronizations().add(new EntityManagerSynchronization(em));
+            context.getCallbacks().add(new EntityManagerSynchronization(em));
             return context;
         } catch (PersistenceException ex) {
             throw new TransactionSystemException("Could not open JPA EntityManager for transaction", ex);
@@ -164,7 +166,7 @@ public class JpaTransactionManager implements PlatformTransactionManager {
         return em;
     }
 
-    private static final class EntityManagerSynchronization implements TransactionSynchronization {
+    private static final class EntityManagerSynchronization implements TransactionCallback {
 
         private final EntityManager entityManager;
 

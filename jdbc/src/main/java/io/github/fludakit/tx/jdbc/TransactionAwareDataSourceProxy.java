@@ -1,8 +1,9 @@
 package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionSynchronization;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
+import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionContext;
+import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -54,8 +55,9 @@ public class TransactionAwareDataSourceProxy implements DataSource {
 
     @Override
     public Connection getConnection() throws SQLException {
-        if (TransactionSynchronizationManager.isActualTransactionActive()) {
-            Connection txConnection = (Connection) TransactionSynchronizationManager.getResource(delegate);
+        TransactionContext ctx = TransactionContextHolder.get();
+        if (ctx != null && ctx.isActualTransactionActive()) {
+            Connection txConnection = (Connection) ctx.getResource(delegate);
             if (txConnection == null) {
                 txConnection = joinTransaction();
             }
@@ -69,8 +71,8 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         boolean bound = false;
         try {
             connection.setAutoCommit(false);
-            TransactionSynchronizationManager.bindResource(delegate, connection);
-            TransactionSynchronizationManager.registerSynchronization(new JoiningSynchronization(connection));
+            TransactionContextHolder.get().bindResource(delegate, connection);
+            TransactionContextHolder.get().registerCallback(new JoiningSynchronization(connection));
             bound = true;
             return connection;
         } finally {
@@ -124,7 +126,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         return delegate.getParentLogger();
     }
 
-    private static final class JoiningSynchronization implements TransactionSynchronization {
+    private static final class JoiningSynchronization implements TransactionCallback {
 
         private final Connection connection;
 

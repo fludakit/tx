@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.support;
 
-public interface TransactionSynchronization {
+public interface TransactionCallback {
     default void beforeCommit(boolean readOnly) {
     }
 

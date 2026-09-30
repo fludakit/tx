@@ -4,8 +4,8 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionSynchronization;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
+import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -54,7 +54,8 @@ public class TransactionalInterceptor {
         }
 
         Transactional.TxType type = definition.propagation();
-        boolean active = TransactionSynchronizationManager.isActualTransactionActive();
+        TransactionContext ctx = TransactionContextHolder.get();
+        boolean active = ctx != null && ctx.isActualTransactionActive();
 
         return switch (type) {
             case MANDATORY -> {
@@ -103,34 +104,34 @@ public class TransactionalInterceptor {
     }
 
     private void commitTransaction(TransactionContext context) {
-        TransactionSynchronizationManager.triggerBeforeCommit(false);
-        TransactionSynchronizationManager.triggerBeforeCompletion();
+        context.triggerBeforeCommit(false);
+        context.triggerBeforeCompletion();
         eventNotifier.notify(TransactionPhase.BEFORE_COMPLETION, context.getEventStore());
         try {
             transactionManager.commit(context);
         } catch (RuntimeException ex) {
-            TransactionSynchronizationManager.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.UNKNOWN);
+            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
             context.markCompleted();
             throw ex;
         }
-        TransactionSynchronizationManager.triggerAfterCommit();
-        TransactionSynchronizationManager.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED);
+        context.triggerAfterCommit();
+        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
         eventNotifier.notify(TransactionPhase.AFTER_SUCCESS, context.getEventStore());
         eventNotifier.notify(TransactionPhase.AFTER_COMPLETION, context.getEventStore());
         context.markCompleted();
     }
 
     private void rollbackTransaction(TransactionContext context) {
-        TransactionSynchronizationManager.triggerBeforeCompletion();
+        context.triggerBeforeCompletion();
         eventNotifier.notify(TransactionPhase.BEFORE_COMPLETION, context.getEventStore());
         try {
             transactionManager.rollback(context);
         } catch (RuntimeException ex) {
-            TransactionSynchronizationManager.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.UNKNOWN);
+            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
             context.markCompleted();
             throw ex;
         }
-        TransactionSynchronizationManager.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.ROLLED_BACK);
+        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK);
         eventNotifier.notify(TransactionPhase.AFTER_FAILURE, context.getEventStore());
         eventNotifier.notify(TransactionPhase.AFTER_COMPLETION, context.getEventStore());
         context.markCompleted();

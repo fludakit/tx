@@ -1,9 +1,8 @@
 package io.github.fludakit.tx;
 
+import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionSynchronization;
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -15,44 +14,48 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class TransactionSynchronizationManagerTest {
+class TransactionContextTest {
 
     @Test
     void bindGetUnbindResource() throws Exception {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
+            TransactionContext ctx = TransactionContextHolder.get();
             Object key = new Object();
             Object value = new Object();
 
-            TransactionSynchronizationManager.bindResource(key, value);
-            assertSame(value, TransactionSynchronizationManager.getResource(key));
-            assertSame(value, TransactionSynchronizationManager.unbindResource(key));
-            assertNull(TransactionSynchronizationManager.getResource(key));
+            ctx.bindResource(key, value);
+            assertSame(value, ctx.getResource(key));
+            assertSame(value, ctx.unbindResource(key));
+            assertNull(ctx.getResource(key));
             return null;
         });
     }
 
     @Test
     void isActualTransactionActiveReflectsState() throws Exception {
-        assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+        TransactionContext noCtx = TransactionContextHolder.get();
+        assertTrue(noCtx == null || !noCtx.isActualTransactionActive());
 
         TransactionContextHolder.call(new TransactionContext(true), () -> {
-            assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
+            assertTrue(TransactionContextHolder.get().isActualTransactionActive());
             return null;
         });
 
         TransactionContextHolder.call(TransactionContext.NON_TRANSACTIONAL, () -> {
-            assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+            assertFalse(TransactionContextHolder.get().isActualTransactionActive());
             return null;
         });
 
-        assertFalse(TransactionSynchronizationManager.isActualTransactionActive());
+        TransactionContext afterCtx = TransactionContextHolder.get();
+        assertTrue(afterCtx == null || !afterCtx.isActualTransactionActive());
     }
 
     @Test
     void registerAndTriggerInOrder() throws Exception {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
+            TransactionContext ctx = TransactionContextHolder.get();
             List<String> calls = new ArrayList<>();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            ctx.registerCallback(new TransactionCallback() {
                 @Override
                 public void beforeCommit(boolean readOnly) {
                     calls.add("beforeCommit");
@@ -74,10 +77,10 @@ class TransactionSynchronizationManagerTest {
                 }
             });
 
-            TransactionSynchronizationManager.triggerBeforeCommit(false);
-            TransactionSynchronizationManager.triggerBeforeCompletion();
-            TransactionSynchronizationManager.triggerAfterCommit();
-            TransactionSynchronizationManager.triggerAfterCompletion(TransactionSynchronization.CompletionStatus.COMMITTED);
+            ctx.triggerBeforeCommit(false);
+            ctx.triggerBeforeCompletion();
+            ctx.triggerAfterCommit();
+            ctx.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
 
             assertEquals(List.of("beforeCommit", "beforeCompletion", "afterCommit", "afterCompletion:COMMITTED"), calls);
             return null;
@@ -87,9 +90,10 @@ class TransactionSynchronizationManagerTest {
     @Test
     void rollbackOnlyFlag() throws Exception {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
-            assertFalse(TransactionSynchronizationManager.isRollbackOnly());
-            TransactionSynchronizationManager.setRollbackOnly();
-            assertTrue(TransactionSynchronizationManager.isRollbackOnly());
+            TransactionContext ctx = TransactionContextHolder.get();
+            assertFalse(ctx.isRollbackOnly());
+            ctx.setRollbackOnly();
+            assertTrue(ctx.isRollbackOnly());
             return null;
         });
     }

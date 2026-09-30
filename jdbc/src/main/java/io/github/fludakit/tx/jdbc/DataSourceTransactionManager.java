@@ -4,7 +4,7 @@ import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionSynchronization;
+import io.github.fludakit.tx.support.TransactionCallback;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -43,7 +43,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
             connection.setAutoCommit(false);
             TransactionContext context = new TransactionContext(true);
             context.getResources().put(dataSource, connection);
-            context.getSynchronizations().add(new ConnectionSynchronization(connection));
+            context.getCallbacks().add(new ConnectionSynchronization(connection));
             return context;
         } catch (SQLException ex) {
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
@@ -78,7 +78,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
         return connection;
     }
 
-    private static final class ConnectionSynchronization implements TransactionSynchronization {
+    private static final class ConnectionSynchronization implements TransactionCallback {
 
         private final Connection connection;
 

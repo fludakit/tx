@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.it.service;
 
-import io.github.fludakit.tx.support.TransactionSynchronizationManager;
+import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
@@ -13,24 +13,29 @@ import jakarta.transaction.Transactional;
 @ApplicationScoped
 public class InnerService {
 
+    private static boolean isTransactionActive() {
+        var ctx = TransactionContextHolder.get();
+        return ctx != null && ctx.isActualTransactionActive();
+    }
+
     @Transactional(Transactional.TxType.REQUIRED)
     public boolean required() {
-        return TransactionSynchronizationManager.isActualTransactionActive();
+        return isTransactionActive();
     }
 
     @Transactional(Transactional.TxType.REQUIRES_NEW)
     public boolean requiresNew() {
-        return TransactionSynchronizationManager.isActualTransactionActive();
+        return isTransactionActive();
     }
 
     @Transactional(Transactional.TxType.SUPPORTS)
     public boolean supports() {
-        return TransactionSynchronizationManager.isActualTransactionActive();
+        return isTransactionActive();
     }
 
     @Transactional(Transactional.TxType.NOT_SUPPORTED)
     public boolean notSupported() {
-        return TransactionSynchronizationManager.isActualTransactionActive();
+        return isTransactionActive();
     }
 
     @Transactional(Transactional.TxType.MANDATORY)
