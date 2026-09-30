@@ -102,16 +102,17 @@ public class JpaTransactionManager implements PlatformTransactionManager {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager(EntityManagerFactory emf) {
-        EntityManager em = (EntityManager) TransactionSynchronizationManager.getResource(emf);
+        TransactionContext context = TransactionContextHolder.get();
+        if (context == null || !context.isActualTransactionActive()) {
+            throw new IllegalStateException("No transaction is active");
+        }
+        EntityManager em = (EntityManager) context.getResources().get(emf);
         if (em != null) {
             return em;
         }
-        TransactionContext context = TransactionContextHolder.get();
-        if (context != null && context.isActualTransactionActive()) {
-            for (Object value : context.getResources().values()) {
-                if (value instanceof EntityManager candidate) {
-                    return candidate;
-                }
+        for (Object value : context.getResources().values()) {
+            if (value instanceof EntityManager candidate) {
+                return candidate;
             }
         }
         throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
