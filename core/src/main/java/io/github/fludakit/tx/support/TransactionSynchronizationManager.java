@@ -25,6 +25,28 @@ public final class TransactionSynchronizationManager {
         return context == null ? null : context.getResources().get(key);
     }
 
+    /**
+     * Finds the first resource bound to the current transaction that matches the given type.
+     *
+     * <p>This is useful when the resource key is not available (e.g., CDI proxy scenarios)
+     * or when searching by type is more convenient than by key.</p>
+     *
+     * @param type the type of resource to find
+     * @return the resource, or {@code null} if no matching resource is bound
+     */
+    public static <T> T findResourceByType(Class<T> type) {
+        TransactionContext context = TransactionContextHolder.get();
+        if (context == null) {
+            return null;
+        }
+        for (Object value : context.getResources().values()) {
+            if (type.isInstance(value)) {
+                return type.cast(value);
+            }
+        }
+        return null;
+    }
+
     public static void bindResource(Object key, Object value) {
         activeContext().getResources().put(key, value);
     }

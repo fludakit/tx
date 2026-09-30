@@ -5,7 +5,6 @@ import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionContextHolder;
 import io.github.fludakit.tx.support.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionSynchronizationManager;
 
@@ -79,16 +78,14 @@ public class JpaTransactionManager implements PlatformTransactionManager {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager() {
-        TransactionContext context = TransactionContextHolder.get();
-        if (context == null || !context.isActualTransactionActive()) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("No transaction is active");
         }
-        for (Object value : context.getResources().values()) {
-            if (value instanceof EntityManager em) {
-                return em;
-            }
+        EntityManager em = TransactionSynchronizationManager.findResourceByType(EntityManager.class);
+        if (em == null) {
+            throw new IllegalStateException("No EntityManager bound to the current transaction");
         }
-        throw new IllegalStateException("No EntityManager bound to the current transaction");
+        return em;
     }
 
     /**
@@ -102,18 +99,17 @@ public class JpaTransactionManager implements PlatformTransactionManager {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager(EntityManagerFactory emf) {
-        TransactionContext context = TransactionContextHolder.get();
-        if (context == null || !context.isActualTransactionActive()) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()) {
             throw new IllegalStateException("No transaction is active");
         }
-        EntityManager em = (EntityManager) context.getResources().get(emf);
+        EntityManager em = (EntityManager) TransactionSynchronizationManager.getResource(emf);
         if (em != null) {
             return em;
         }
-        for (Object value : context.getResources().values()) {
-            if (value instanceof EntityManager candidate) {
-                return candidate;
-            }
+        // Fallback for CDI proxy scenario: search by type
+        em = TransactionSynchronizationManager.findResourceByType(EntityManager.class);
+        if (em != null) {
+            return em;
         }
         throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
     }
