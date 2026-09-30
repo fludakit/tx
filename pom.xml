@@ -66,6 +66,7 @@
         <h2.version>2.5.250</h2.version>
         <weld-junit5.version>5.0.3.Final</weld-junit5.version>
         <hikaricp.version>7.1.0</hikaricp.version>
+        <hibernate.version>7.0.2.Final</hibernate.version>
     </properties>
 
     <dependencyManagement>
@@ -84,6 +85,11 @@
             <dependency>
                 <groupId>io.github.fludakit</groupId>
                 <artifactId>fluda-tx-jdbc</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.fludakit</groupId>
+                <artifactId>fluda-tx-jpa</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -120,6 +126,11 @@
                 <groupId>com.zaxxer</groupId>
                 <artifactId>HikariCP</artifactId>
                 <version>${hikaricp.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hibernate.orm</groupId>
+                <artifactId>hibernate-core</artifactId>
+                <version>${hibernate.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
