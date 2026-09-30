@@ -75,6 +75,9 @@ public class TransactionalCdiExtension implements Extension {
                 .scope(Singleton.class)
                 .createWith(ctx -> notifier);
 
+        // Register @TransactionScoped context
+        event.addContext(new TransactionScopeContext());
+
         event.addObserverMethod(new CapturingObserver());
     }
 
