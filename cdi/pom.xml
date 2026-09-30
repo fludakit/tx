@@ -60,4 +60,39 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.moditect</groupId>
+                <artifactId>moditect-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>add-module-info</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>add-module-info</goal>
+                        </goals>
+                        <configuration>
+                            <jdepsExtraArgs>
+                                <arg>--multi-release</arg>
+                                <arg>25</arg>
+                            </jdepsExtraArgs>
+                            <module>
+                                <moduleInfo>
+                                    <name>fluda.tx.cdi</name>
+                                    <exports>
+                                        io.github.fludakit.tx.cdi;
+                                    </exports>
+                                    <opens>
+                                        io.github.fludakit.tx.cdi;
+                                    </opens>
+                                </moduleInfo>
+                            </module>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 </project>
