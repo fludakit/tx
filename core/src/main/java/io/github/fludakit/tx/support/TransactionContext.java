@@ -28,6 +28,10 @@ import java.util.Map;
  * default {@code Object.equals()} which is identity-based. So {@code proxyEmf.equals(rawEmf)}
  * returns {@code false}, and equality-based maps don't help.</p>
  *
+ * <p><b>Why can't we unwrap CDI proxies?</b> There's no standard CDI API to unwrap a proxy to its
+ * underlying instance. CDI proxies are designed to be transparent, and the underlying instance is
+ * not accessible through the proxy interface.</p>
+ *
  * <p><b>Workaround:</b> Use {@link #findResourceByType(Class)} to search by value instead of key.
  * This works for single-resource scenarios but cannot distinguish between multiple resources of
  * the same type.</p>
@@ -44,6 +48,89 @@ import java.util.Map;
  *
  * // Retrieve resource by type (CDI proxy-safe, single-resource only)
  * EntityManager em = ctx.findResourceByType(EntityManager.class);
+ * }</pre>
+ *
+ * <h3>Working with CDI Proxies</h3>
+ * <p>When using CDI injection, the injected instance is a client proxy, not the raw bean. This
+ * causes identity-based lookups to fail. Here are the recommended patterns:</p>
+ *
+ * <h4>Pattern 1: Use type-based lookup (recommended for single-resource)</h4>
+ * <pre>{@code
+ * @ApplicationScoped
+ * public class UserService {
+ *     @Inject
+ *     private EntityManagerFactory emf;  // This is a CDI proxy
+ *     
+ *     @Transactional
+ *     public void createUser(User user) {
+ *         // Don't do this (fails with proxy):
+ *         // EntityManager em = (EntityManager) ctx.getResource(emf);
+ *         
+ *         // Do this instead (works with proxy):
+ *         EntityManager em = JpaTransactionManager.currentEntityManager();
+ *         em.persist(user);
+ *     }
+ * }
+ * }</pre>
+ *
+ * <h4>Pattern 2: Store raw instance reference (for multi-resource)</h4>
+ * <pre>{@code
+ * @ApplicationScoped
+ * public class DatabaseConfig {
+ *     private final EntityManagerFactory rawEmf;
+ *     
+ *     public DatabaseConfig() {
+ *         this.rawEmf = Persistence.createEntityManagerFactory("myPU");
+ *     }
+ *     
+ *     @Produces
+ *     @ApplicationScoped
+ *     public EntityManagerFactory entityManagerFactory() {
+ *         return rawEmf;  // CDI will wrap this in a proxy
+ *     }
+ *     
+ *     @Produces
+ *     @ApplicationScoped
+ *     public PlatformTransactionManager transactionManager() {
+ *         // Use the raw instance, not the proxy
+ *         return new JpaTransactionManager(rawEmf, dataSource);
+ *     }
+ *     
+ *     // Provide access to raw instance for lookups
+ *     public EntityManagerFactory getRawEntityManagerFactory() {
+ *         return rawEmf;
+ *     }
+ * }
+ * 
+ * @ApplicationScoped
+ * public class UserService {
+ *     @Inject
+ *     private DatabaseConfig config;
+ *     
+ *     @Transactional
+ *     public void createUser(User user) {
+ *         // Use raw instance for lookup
+ *         EntityManager em = JpaTransactionManager.currentEntityManager(
+ *             config.getRawEntityManagerFactory());
+ *         em.persist(user);
+ *     }
+ * }
+ * }</pre>
+ *
+ * <h4>Pattern 3: Avoid CDI injection for EntityManagerFactory</h4>
+ * <pre>{@code
+ * @ApplicationScoped
+ * public class UserService {
+ *     // Don't inject EntityManagerFactory if you need it for lookups
+ *     // @Inject private EntityManagerFactory emf;  // Bad: this is a proxy
+ *     
+ *     @Transactional
+ *     public void createUser(User user) {
+ *         // Use no-arg version instead
+ *         EntityManager em = JpaTransactionManager.currentEntityManager();
+ *         em.persist(user);
+ *     }
+ * }
  * }</pre>
  */
 public final class TransactionContext {
