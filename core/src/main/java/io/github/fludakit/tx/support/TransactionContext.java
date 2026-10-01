@@ -43,8 +43,8 @@ import java.util.Map;
  * ctx.bindResource(dataSource, connection);
  * ctx.registerCallback(cleanupCallback);
  *
- * // Retrieve resource by key (works with raw instance)
- * Connection conn = (Connection) ctx.getResource(dataSource);
+ * // Retrieve resource by key (type-safe, works with raw instance)
+ * Connection conn = ctx.getResource(dataSource, Connection.class);
  *
  * // Retrieve resource by type (CDI proxy-safe, single-resource only)
  * EntityManager em = ctx.findResourceByType(EntityManager.class);
@@ -64,7 +64,7 @@ import java.util.Map;
  *     @Transactional
  *     public void createUser(User user) {
  *         // Don't do this (fails with proxy):
- *         // EntityManager em = (EntityManager) ctx.getResource(emf);
+ *         // EntityManager em = ctx.getResource(emf, EntityManager.class);
  *         
  *         // Do this instead (works with proxy):
  *         EntityManager em = JpaTransactionManager.currentEntityManager();
@@ -157,6 +157,27 @@ public final class TransactionContext {
 
     public Object getResource(Object key) {
         return resources.get(key);
+    }
+
+    /**
+     * Retrieves the resource bound to the given key, cast to the expected type.
+     *
+     * <p>This is a type-safe convenience method that eliminates the need for explicit casting.
+     * The resource is looked up by key (identity-based) and cast to the specified type.</p>
+     *
+     * <h3>CDI Proxy Consideration</h3>
+     * <p>If the key is a CDI proxy, the lookup may fail because {@code IdentityHashMap} uses
+     * identity comparison. In such cases, use {@link #findResourceByType(Class)} instead.</p>
+     *
+     * @param key the key (resource owner) under which the resource was bound
+     * @param type the expected type of the resource
+     * @param <T> the resource type
+     * @return the resource cast to type {@code T}, or {@code null} if not found
+     * @throws ClassCastException if the resource is not assignable to the expected type
+     */
+    public <T> T getResource(Object key, Class<T> type) {
+        Object resource = resources.get(key);
+        return resource == null ? null : type.cast(resource);
     }
 
     public void bindResource(Object key, Object value) {

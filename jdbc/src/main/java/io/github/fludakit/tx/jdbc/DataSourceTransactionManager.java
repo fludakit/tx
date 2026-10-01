@@ -71,7 +71,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
     }
 
     private Connection boundConnection(TransactionContext context) {
-        Connection connection = (Connection) context.getResources().get(dataSource);
+        Connection connection = context.getResource(dataSource, Connection.class);
         if (connection == null) {
             throw new IllegalStateException("No JDBC Connection bound for this DataSource");
         }

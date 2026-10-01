@@ -158,7 +158,7 @@ public class JpaTransactionManager implements PlatformTransactionManager {
     }
 
     private EntityManager boundEntityManager(TransactionContext context) {
-        EntityManager em = (EntityManager) context.getResources().get(entityManagerFactory);
+        EntityManager em = context.getResource(entityManagerFactory, EntityManager.class);
         if (em == null) {
             throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
         }

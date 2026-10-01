@@ -53,13 +53,13 @@ import io.github.fludakit.tx.support.TransactionContext;
  *     
  *     @Override
  *     public void commit(TransactionContext context) {
- *         Connection conn = (Connection) context.getResource(dataSource);
+ *         Connection conn = context.getResource(dataSource, Connection.class);
  *         conn.commit();
  *     }
  *     
  *     @Override
  *     public void rollback(TransactionContext context) {
- *         Connection conn = (Connection) context.getResource(dataSource);
+ *         Connection conn = context.getResource(dataSource, Connection.class);
  *         if (!conn.isClosed()) conn.rollback();
  *     }
  * }

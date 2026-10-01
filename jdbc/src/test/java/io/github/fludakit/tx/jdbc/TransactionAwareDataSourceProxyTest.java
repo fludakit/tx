@@ -50,7 +50,7 @@ class TransactionAwareDataSourceProxyTest {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
             proxy.getConnection();
 
-            Connection bound = (Connection) TransactionContextHolder.get().getResource(dataSource);
+            Connection bound = TransactionContextHolder.get().getResource(dataSource, Connection.class);
             assertNotNull(bound, "a connection must be bound on join");
             assertFalse(bound.getAutoCommit());
             bound.close();

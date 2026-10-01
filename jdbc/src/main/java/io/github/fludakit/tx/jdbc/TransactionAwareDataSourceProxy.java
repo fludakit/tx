@@ -57,7 +57,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection() throws SQLException {
         TransactionContext ctx = TransactionContextHolder.get();
         if (ctx != null && ctx.isActualTransactionActive()) {
-            Connection txConnection = (Connection) ctx.getResource(delegate);
+            Connection txConnection = ctx.getResource(delegate, Connection.class);
             if (txConnection == null) {
                 txConnection = joinTransaction();
             }

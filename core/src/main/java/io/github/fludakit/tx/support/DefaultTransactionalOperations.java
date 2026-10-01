@@ -22,7 +22,7 @@ import java.util.Objects;
  * TransactionalOperations txOps = new DefaultTransactionalOperations(txManager);
  *
  * Long userId = txOps.execute(ctx -> {
- *     Connection conn = (Connection) ctx.getResource(dataSource);
+ *     Connection conn = ctx.getResource(dataSource, Connection.class);
  *     // ... JDBC operations ...
  *     return userId;
  * });
