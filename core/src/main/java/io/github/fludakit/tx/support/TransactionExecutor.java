@@ -9,7 +9,7 @@ package io.github.fludakit.tx.support;
  * <h2>Usage Example</h2>
  * <pre>{@code
  * txOps.execute(ctx -> {
- *     EntityManager em = JpaTransactionManager.currentEntityManager();
+ *     EntityManager em = JpaHelper.currentEntityManager();
  *     em.persist(entity);
  *     return entity.getId();
  * });

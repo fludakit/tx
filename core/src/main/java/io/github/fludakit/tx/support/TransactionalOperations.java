@@ -15,7 +15,7 @@ import io.github.fludakit.tx.TransactionDefinition;
  * 
  * public void createUser(User user) {
  *     txOps.execute(ctx -> {
- *         EntityManager em = JpaTransactionManager.currentEntityManager();
+ *         EntityManager em = JpaHelper.currentEntityManager();
  *         em.persist(user);
  *         
  *         // Can also use JDBC in the same transaction

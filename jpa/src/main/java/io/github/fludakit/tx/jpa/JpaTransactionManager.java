@@ -8,17 +8,15 @@ import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.EntityTransaction;
-import jakarta.persistence.PersistenceException;
-
 import java.sql.Connection;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import javax.sql.DataSource;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.EntityTransaction;
+import jakarta.persistence.PersistenceException;
 
 /**
  * JPA-based {@link PlatformTransactionManager} that manages transactions through a standard
@@ -52,8 +50,8 @@ public class JpaTransactionManager implements PlatformTransactionManager {
     }
 
     public JpaTransactionManager(EntityManagerFactory entityManagerFactory,
-                                  DataSource dataSource,
-                                  ConnectionExtractor connectionExtractor) {
+                                 DataSource dataSource,
+                                 ConnectionExtractor connectionExtractor) {
         this.entityManagerFactory = Objects.requireNonNull(entityManagerFactory, "entityManagerFactory must not be null");
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
         this.connectionExtractor = Objects.requireNonNull(connectionExtractor, "connectionExtractor must not be null");
@@ -65,54 +63,6 @@ public class JpaTransactionManager implements PlatformTransactionManager {
 
     public DataSource getDataSource() {
         return dataSource;
-    }
-
-    /**
-     * Returns the {@link EntityManager} bound to the current transaction.
-     *
-     * <p>For the common single-EMF case. If multiple EntityManagerFactories are in use,
-     * prefer {@link #currentEntityManager(EntityManagerFactory)} with the raw (non-proxy)
-     * factory instance.</p>
-     *
-     * @throws IllegalStateException if no transaction is active or no EntityManager is bound
-     */
-    public static EntityManager currentEntityManager() {
-        TransactionContext ctx = TransactionContextHolder.get();
-        if (ctx == null || !ctx.isActualTransactionActive()) {
-            throw new IllegalStateException("No transaction is active");
-        }
-        EntityManager em = ctx.findResourceByType(EntityManager.class);
-        if (em == null) {
-            throw new IllegalStateException("No EntityManager bound to the current transaction");
-        }
-        return em;
-    }
-
-    /**
-     * Returns the {@link EntityManager} bound to the current transaction for the given factory.
-     *
-     * <p>The {@code emf} parameter should be the raw {@link EntityManagerFactory} instance,
-     * not a CDI proxy. When using CDI injection, prefer {@link #currentEntityManager()} instead,
-     * since injected EMF references are client proxies that differ in identity from the raw
-     * factory used as the resource key.</p>
-     *
-     * @throws IllegalStateException if no transaction is active or no EntityManager is bound
-     */
-    public static EntityManager currentEntityManager(EntityManagerFactory emf) {
-        TransactionContext ctx = TransactionContextHolder.get();
-        if (ctx == null || !ctx.isActualTransactionActive()) {
-            throw new IllegalStateException("No transaction is active");
-        }
-        EntityManager em = (EntityManager) ctx.getResource(emf);
-        if (em != null) {
-            return em;
-        }
-        // Fallback for CDI proxy scenario: search by type
-        em = ctx.findResourceByType(EntityManager.class);
-        if (em != null) {
-            return em;
-        }
-        throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
     }
 
     @Override

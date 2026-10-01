@@ -17,7 +17,7 @@ import java.lang.reflect.Proxy;
  * CDI producer for transaction-scoped {@link EntityManager}.
  *
  * <p>This producer enables direct injection of {@code EntityManager} in CDI beans,
- * eliminating the need to call {@link JpaTransactionManager#currentEntityManager()} statically.</p>
+ * eliminating the need to call {@link JpaHelper#currentEntityManager()} statically.</p>
  *
  * <h2>Usage</h2>
  * <pre>{@code
@@ -75,11 +75,11 @@ import java.lang.reflect.Proxy;
  *
  * <h2>CDI Proxy Handling</h2>
  * <p>The injected {@code EntityManagerFactory} may be a CDI client proxy (for {@code @ApplicationScoped}
- * beans). The {@link JpaTransactionManager#currentEntityManager(EntityManagerFactory)} method
+ * beans). The {@link JpaHelper#currentEntityManager(EntityManagerFactory)} method
  * handles this by falling back to type-based resource lookup when identity-based lookup fails.</p>
  *
- * @see JpaTransactionManager#currentEntityManager()
- * @see JpaTransactionManager#currentEntityManager(EntityManagerFactory)
+ * @see JpaHelper#currentEntityManager()
+ * @see JpaHelper#currentEntityManager(EntityManagerFactory)
  */
 @Dependent
 public class EntityManagerProducer {
@@ -92,7 +92,7 @@ public class EntityManagerProducer {
      *
      * <p>The returned proxy defers EntityManager lookup until first method invocation.
      * When a method is called, it retrieves the EntityManager from the active
-     * {@link TransactionContext} via {@link JpaTransactionManager#currentEntityManager(EntityManagerFactory)}.
+     * {@link TransactionContext} via {@link JpaHelper#currentEntityManager(EntityManagerFactory)}.
      * If no transaction is active, throws {@link IllegalStateException}.</p>
      *
      * @return a proxy that resolves to the transaction-scoped EntityManager on first use
@@ -122,7 +122,7 @@ public class EntityManagerProducer {
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
             if (resolved == null) {
-                resolved = JpaTransactionManager.currentEntityManager(emf);
+                resolved = JpaHelper.currentEntityManager(emf);
             }
             return method.invoke(resolved, args);
         }

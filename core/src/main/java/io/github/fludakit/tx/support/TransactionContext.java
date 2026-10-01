@@ -67,7 +67,7 @@ import java.util.Map;
  *         // EntityManager em = ctx.getResource(emf, EntityManager.class);
  *         
  *         // Do this instead (works with proxy):
- *         EntityManager em = JpaTransactionManager.currentEntityManager();
+ *         EntityManager em = JpaHelper.currentEntityManager();
  *         em.persist(user);
  *     }
  * }
@@ -110,7 +110,7 @@ import java.util.Map;
  *     @Transactional
  *     public void createUser(User user) {
  *         // Use raw instance for lookup
- *         EntityManager em = JpaTransactionManager.currentEntityManager(
+ *         EntityManager em = JpaHelper.currentEntityManager(
  *             config.getRawEntityManagerFactory());
  *         em.persist(user);
  *     }
@@ -127,7 +127,7 @@ import java.util.Map;
  *     @Transactional
  *     public void createUser(User user) {
  *         // Use no-arg version instead
- *         EntityManager em = JpaTransactionManager.currentEntityManager();
+ *         EntityManager em = JpaHelper.currentEntityManager();
  *         em.persist(user);
  *     }
  * }

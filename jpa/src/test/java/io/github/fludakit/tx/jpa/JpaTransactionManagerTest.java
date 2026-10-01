@@ -124,7 +124,7 @@ class JpaTransactionManagerTest {
 
         try {
             io.github.fludakit.tx.support.TransactionContextHolder.call(context, () -> {
-                EntityManager actual = JpaTransactionManager.currentEntityManager(emf);
+                EntityManager actual = JpaHelper.currentEntityManager(emf);
                 assertSame(expected, actual);
                 return null;
             });
@@ -138,7 +138,7 @@ class JpaTransactionManagerTest {
     @Test
     void currentEntityManager_throwsWhenNoBinding() {
         assertThrows(IllegalStateException.class,
-                () -> JpaTransactionManager.currentEntityManager(emf));
+                () -> JpaHelper.currentEntityManager(emf));
     }
 
     private void cleanup(TransactionContext context) {

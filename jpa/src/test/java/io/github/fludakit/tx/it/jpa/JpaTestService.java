@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.it.jpa;
 
-import io.github.fludakit.tx.jpa.JpaTransactionManager;
+import io.github.fludakit.tx.jpa.JpaHelper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
@@ -22,20 +22,20 @@ public class JpaTestService {
 
     @Transactional
     public void persistItem(long id, String name) {
-        EntityManager em = JpaTransactionManager.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager(emf);
         em.persist(new TestEntity(id, name));
     }
 
     @Transactional
     public void persistAndThrow(long id, String name) {
-        EntityManager em = JpaTransactionManager.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager(emf);
         em.persist(new TestEntity(id, name));
         throw new IllegalStateException("rollback");
     }
 
     @Transactional
     public void mixJpaAndJdbc(long jpaId, String jpaName, long jdbcId, String jdbcName) throws Exception {
-        EntityManager em = JpaTransactionManager.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager(emf);
         em.persist(new TestEntity(jpaId, jpaName));
 
         try (Connection conn = dataSource.getConnection();
