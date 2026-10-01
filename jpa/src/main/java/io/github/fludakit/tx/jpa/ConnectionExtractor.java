@@ -13,13 +13,14 @@ import java.sql.Connection;
  * provider-agnostic.</p>
  *
  * <p>The {@link #DEFAULT} implementation tries {@code em.unwrap(Connection.class)} first, then
- * falls back to Hibernate's {@code Session.getJdbcConnectionAccess()} via reflection (no compile-time
- * Hibernate dependency).</p>
+ * falls back to Hibernate's {@code Session.getJdbcConnectionAccess()} if Hibernate is present.</p>
  */
 @FunctionalInterface
 public interface ConnectionExtractor {
 
     Connection extract(EntityManager em);
+
+    boolean HIBERNATE_PRESENT = isHibernatePresent();
 
     ConnectionExtractor DEFAULT = em -> {
         try {
@@ -29,18 +30,31 @@ public interface ConnectionExtractor {
         }
     };
 
-    private static Connection extractViaHibernateSession(EntityManager em) {
+    private static boolean isHibernatePresent() {
         try {
-            Object session = em.unwrap(em.getDelegate().getClass());
-            Object access = session.getClass()
-                    .getMethod("getJdbcConnectionAccess")
-                    .invoke(session);
-            return (Connection) access.getClass()
-                    .getMethod("obtainConnection")
-                    .invoke(access);
+            Class.forName("org.hibernate.engine.spi.SessionImplementor");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
+    }
+
+    private static Connection extractViaHibernateSession(EntityManager em) {
+        if (!HIBERNATE_PRESENT) {
+            throw new IllegalStateException(
+                    "Cannot extract JDBC Connection from EntityManager. "
+                    + "Hibernate is not available. Provide a custom ConnectionExtractor to JpaTransactionManager.");
+        }
+        
+        org.hibernate.engine.spi.SessionImplementor session = 
+                em.unwrap(org.hibernate.engine.spi.SessionImplementor.class);
+        org.hibernate.engine.jdbc.connections.spi.JdbcConnectionAccess access = 
+                session.getJdbcConnectionAccess();
+        try {
+            return access.obtainConnection();
         } catch (Exception ex) {
             throw new jakarta.persistence.PersistenceException(
-                    "Cannot extract JDBC Connection from EntityManager. "
+                    "Cannot extract JDBC Connection from Hibernate Session. "
                     + "Provide a custom ConnectionExtractor to JpaTransactionManager.", ex);
         }
     }
