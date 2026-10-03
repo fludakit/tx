@@ -1,5 +1,7 @@
 # FluDa Transaction Support
 
+[![Build](https://github.com/fludakit/tx/actions/workflows/build.yml/badge.svg)](https://github.com/fludakit/tx/actions/workflows/build.yml)
+
 Container-agnostic declarative and programmatic transaction boundaries backed directly by a standard `DataSource` or JPA.
 
 ## Modules
