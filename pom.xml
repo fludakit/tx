@@ -47,7 +47,9 @@
     </modules>
 
     <properties>
-        <!-- Module-specific properties can be added here -->
+        <h2.version>2.5.252</h2.version>
+        <hikaricp.version>7.1.0</hikaricp.version>
+        <hibernate.version>7.4.11.Final</hibernate.version>
     </properties>
 
     <dependencyManagement>
@@ -72,6 +74,23 @@
                 <groupId>io.github.fludakit</groupId>
                 <artifactId>fluda-tx-jpa</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+
+            <!-- Transaction specific dependencies -->
+            <dependency>
+                <groupId>com.h2database</groupId>
+                <artifactId>h2</artifactId>
+                <version>${h2.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zaxxer</groupId>
+                <artifactId>HikariCP</artifactId>
+                <version>${hikaricp.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hibernate.orm</groupId>
+                <artifactId>hibernate-core</artifactId>
+                <version>${hibernate.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
