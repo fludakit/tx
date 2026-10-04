@@ -13,45 +13,24 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 ## Usage
 
-### 1. Add dependencies
-
-```xml
-<dependency>
-    <groupId>io.github.fludakit</groupId>
-    <artifactId>fluda-tx-core</artifactId>
-    <version>${fluda.version}</version>
-</dependency>
-<dependency>
-    <groupId>io.github.fludakit</groupId>
-    <artifactId>fluda-tx-cdi</artifactId>
-    <version>${fluda.version}</version>
-</dependency>
-<dependency>
-    <groupId>io.github.fludakit</groupId>
-    <artifactId>fluda-tx-jdbc</artifactId>
-    <version>${fluda.version}</version>
-</dependency>
-```
-
-### 2. Set up a `TransactionAwareDataSource` and a `PlatformTransactionManager`
+Wrap your `DataSource` with `TransactionAwareDataSourceProxy`, register a `DataSourceTransactionManager`, and annotate methods with `@Transactional`:
 
 ```java
 import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import jakarta.transaction.Transactional;
 
 DataSource raw = ...; // your connection pool
 DataSource txAware = new TransactionAwareDataSourceProxy(raw);
 PlatformTransactionManager txManager = new DataSourceTransactionManager(raw);
-```
 
-### 3. Use `@Transactional`
-
-```java
 @Transactional
 public void createOrder(Order order) {
     // runs inside a resource-local transaction
 }
 ```
+
+For CDI setup, transaction-phase callbacks and events, multiple DataSources, and mixing JPA with JDBC, see the [Transaction documentation](https://fludakit.github.io/documentation/tx/getting-started/).
 
 ## Building
 
@@ -61,4 +40,4 @@ public void createOrder(Order order) {
 
 ## Documentation
 
-See the [reference documentation site](https://fludakit.github.io/) for installation, quickstart, and full API reference.
+See the [reference documentation site](https://fludakit.github.io/documentation/tx/getting-started/) for getting started, the JDBC and JPA implementations, and advanced topics.
