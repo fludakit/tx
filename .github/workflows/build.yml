@@ -3,6 +3,8 @@ name: Build
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
@@ -61,6 +63,7 @@ jobs:
   publish:
     name: Publish to GitHub Packages
     needs: [build, test]
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
