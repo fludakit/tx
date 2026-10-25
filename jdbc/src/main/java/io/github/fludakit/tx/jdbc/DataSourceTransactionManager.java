@@ -13,6 +13,7 @@ import io.github.fludakit.tx.support.TransactionStatus;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
@@ -37,7 +38,7 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
 
     private static final String SAVEPOINT_PREFIX = "fluda_sp_";
 
-    private int savepointCounter;
+    private final AtomicInteger savepointCounter = new AtomicInteger();
 
     public DataSourceTransactionManager(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
@@ -68,7 +69,7 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
         @Override
         public TransactionSavepoint createSavepoint() {
             try {
-                String name = SAVEPOINT_PREFIX + ++savepointCounter;
+                String name = SAVEPOINT_PREFIX + savepointCounter.incrementAndGet();
                 return new JdbcSavepoint(connection.setSavepoint(name), name);
             } catch (SQLException ex) {
                 throw new TransactionSystemException("Could not create JDBC savepoint", ex);
