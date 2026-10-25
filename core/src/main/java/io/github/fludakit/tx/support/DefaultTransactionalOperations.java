@@ -114,12 +114,12 @@ public class DefaultTransactionalOperations<T> implements TransactionalOperation
             transactionManager.commit(context);
         } catch (RuntimeException ex) {
             context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
-            context.markCompleted();
+            context.markCompleted(TransactionCallback.CompletionStatus.UNKNOWN);
             throw ex;
         }
         context.triggerAfterCommit();
         context.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
-        context.markCompleted();
+        context.markCompleted(TransactionCallback.CompletionStatus.COMMITTED);
     }
 
     private void rollbackTransaction(TransactionContext context) {
@@ -128,11 +128,11 @@ public class DefaultTransactionalOperations<T> implements TransactionalOperation
             transactionManager.rollback(context);
         } catch (RuntimeException ex) {
             context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
-            context.markCompleted();
+            context.markCompleted(TransactionCallback.CompletionStatus.UNKNOWN);
             throw ex;
         }
         context.triggerAfterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK);
-        context.markCompleted();
+        context.markCompleted(TransactionCallback.CompletionStatus.ROLLED_BACK);
     }
 
     private static Exception rethrow(Throwable throwable) throws Exception {

@@ -7,13 +7,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The per-transaction context/status — the single object that captures one resource-local
- * transaction.
+ * The per-transaction context — the single object that captures one resource-local transaction.
  *
- * <p>Created and populated by a {@link io.github.fludakit.tx.TransactionManager}, bound
- * to the thread/scope by {@link TransactionContextHolder}. It holds the bound
- * resources, the registered callbacks, the deferred event payloads, and the rollback-only
- * and completed flags.</p>
+ * <p>Created and populated by a {@link io.github.fludakit.tx.TransactionManager}, bound to the
+ * thread/scope by {@link TransactionContextHolder}. It holds the bound resources, the registered
+ * callbacks, and the transaction's {@link TransactionStatus}.</p>
  *
  * <h2>Resource Storage</h2>
  * <p>One resource per type. There is no multi-datasource support — an application has one
@@ -44,7 +42,7 @@ public final class TransactionContext {
      * Shared context representing "no active transaction" (used by NOT_SUPPORTED/NEVER/SUPPORTS).
      *
      * <p>Immutable and shared by every execution on every thread: any mutation — binding a
-     * resource, registering a callback, marking rollback-only — would leak into all subsequent
+     * resource, registering a callback, changing the status — would leak into all subsequent
      * non-transactional scopes, so each mutator throws {@link UnsupportedOperationException}
      * instead of silently poisoning the sentinel.</p>
      */
@@ -54,29 +52,36 @@ public final class TransactionContext {
     private final boolean immutable;
     private final Map<Class<?>, Object> resources = new LinkedHashMap<>();
     private final List<TransactionCallback> callbacks = new ArrayList<>();
-    private final List<Object> events = new ArrayList<>();
-    private volatile boolean rollbackOnly;
-    private volatile boolean completed;
+    private final TransactionStatus status;
 
     public TransactionContext(boolean actualTransactionActive) {
-        this(actualTransactionActive, false);
+        this.actualTransactionActive = actualTransactionActive;
+        this.immutable = false;
+        this.status = TransactionStatus.initial();
+    }
+
+    public TransactionContext(boolean actualTransactionActive, TransactionStatus status) {
+        this.actualTransactionActive = actualTransactionActive;
+        this.immutable = false;
+        this.status = status == null ? TransactionStatus.initial() : status;
     }
 
     private TransactionContext(boolean actualTransactionActive, boolean immutable) {
         this.actualTransactionActive = actualTransactionActive;
         this.immutable = immutable;
+        this.status = TransactionStatus.initial();
     }
 
     public boolean isActualTransactionActive() {
         return actualTransactionActive;
     }
 
-    /**
-     * Binds the transaction's resource under the given type key, replacing any previous binding.
-     *
-     * <p>The value's type need not match the key ({@code DataSource.class} deliberately holds the
-     * transactional {@code Connection}); {@link #getResource(Class)} is the typed read.</p>
-     */
+    /** The transaction's status facts: read-only, new/joined, rollback-only, completion state. */
+    public TransactionStatus getStatus() {
+        return status;
+    }
+
+    /** Binds the transaction's resource under the given type key, replacing any previous binding. */
     public void bindResource(Class<?> type, Object value) {
         requireMutable("bindResource");
         resources.put(type, value);
@@ -127,32 +132,34 @@ public final class TransactionContext {
         }
     }
 
-    public void addEvent(Object event) {
-        requireMutable("addEvent");
-        events.add(event);
-    }
-
-    /** Unmodifiable view of the deferred event payloads; use {@link #addEvent} to add. */
-    public List<Object> getEvents() {
-        return Collections.unmodifiableList(events);
-    }
-
     public boolean isRollbackOnly() {
-        return rollbackOnly;
+        return status.isRollbackOnly();
     }
 
     public void setRollbackOnly() {
         requireMutable("setRollbackOnly");
-        this.rollbackOnly = true;
+        status.setRollbackOnly();
     }
 
     public boolean isCompleted() {
-        return completed;
+        return status.isCompleted();
     }
 
-    public void markCompleted() {
+    /**
+     * Transitions the transaction to its terminal state — the same status the call site passes to
+     * {@code triggerAfterCompletion}.
+     */
+    public void markCompleted(TransactionCallback.CompletionStatus completion) {
         requireMutable("markCompleted");
-        this.completed = true;
+        status.markCompleted(toState(completion));
+    }
+
+    private static TransactionStatus.State toState(TransactionCallback.CompletionStatus completion) {
+        return switch (completion) {
+            case COMMITTED -> TransactionStatus.State.COMMITTED;
+            case ROLLED_BACK -> TransactionStatus.State.ROLLED_BACK;
+            case UNKNOWN -> TransactionStatus.State.UNKNOWN;
+        };
     }
 
     private void requireMutable(String operation) {

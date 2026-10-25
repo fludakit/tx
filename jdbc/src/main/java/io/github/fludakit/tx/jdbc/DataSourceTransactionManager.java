@@ -5,6 +5,7 @@ import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionStatus;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -69,7 +70,7 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
             }
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }
-        TransactionContext context = new TransactionContext(true);
+        TransactionContext context = new TransactionContext(true, TransactionStatus.initial(definition));
         context.bindResource(Connection.class, connection);
         context.registerCallback(new ConnectionCleanup(connection, definition.readOnly()));
         return context;

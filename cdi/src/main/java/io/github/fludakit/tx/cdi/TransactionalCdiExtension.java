@@ -120,7 +120,10 @@ public class TransactionalCdiExtension implements Extension {
         public void notify(Object event) {
             TransactionContext ctx = TransactionContextHolder.get();
             if (ctx != null && ctx.isActualTransactionActive()) {
-                ctx.addEvent(event);
+                TransactionEventBuffer buffer = ctx.getResource(TransactionEventBuffer.class);
+                if (buffer != null) {
+                    buffer.add(event);
+                }
             }
         }
     }
