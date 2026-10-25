@@ -46,6 +46,10 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
         }
         try {
             connection.setAutoCommit(false);
+            if (definition.readOnly()) {
+                // driver/pool hint; the cleanup restores the JDBC default before release
+                connection.setReadOnly(true);
+            }
         } catch (SQLException ex) {
             // release the pooled connection before translating — nothing is bound to clean it up yet
             try {
@@ -58,7 +62,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
         }
         TransactionContext context = new TransactionContext(true);
         context.bindResource(dataSource, connection);
-        context.registerCallback(new ConnectionCleanup(connection));
+        context.registerCallback(new ConnectionCleanup(connection, definition.readOnly()));
         return context;
     }
 
@@ -93,9 +97,11 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
     private static final class ConnectionCleanup implements TransactionCallback {
 
         private final Connection connection;
+        private final boolean resetReadOnly;
 
-        ConnectionCleanup(Connection connection) {
+        ConnectionCleanup(Connection connection, boolean resetReadOnly) {
             this.connection = connection;
+            this.resetReadOnly = resetReadOnly;
         }
 
         @Override
@@ -103,6 +109,9 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
             try {
                 if (!connection.getAutoCommit()) {
                     connection.setAutoCommit(true);
+                }
+                if (resetReadOnly) {
+                    connection.setReadOnly(false);
                 }
                 connection.close();
             } catch (SQLException ex) {
