@@ -59,17 +59,25 @@ final class TransactionEventReplay implements TransactionCallback {
         if (observers.isEmpty()) {
             return;
         }
-        for (Object payload : buffer.events()) {
+        for (TransactionEventBuffer.BufferedEvent event : buffer.events()) {
             for (ObserverMethod<?> observer : observers) {
-                if (matches(observer, payload)) {
-                    notifySafely(observer, payload);
+                if (matches(observer, event)) {
+                    notifySafely(observer, event.payload());
                 }
             }
         }
     }
 
-    private static boolean matches(ObserverMethod<?> observer, Object payload) {
-        return rawType(observer.getObservedType()).isAssignableFrom(payload.getClass());
+    /**
+     * An observer receives a buffered event when the payload's type is assignable to the
+     * observer's type and the observer's qualifiers are covered by the capture group's — the
+     * group fired only for events carrying at least those qualifiers.
+     */
+    private static boolean matches(ObserverMethod<?> observer, TransactionEventBuffer.BufferedEvent event) {
+        if (!rawType(observer.getObservedType()).isAssignableFrom(event.payload().getClass())) {
+            return false;
+        }
+        return observer.getObservedQualifiers().containsAll(event.qualifiers());
     }
 
     private static Class<?> rawType(Type type) {
