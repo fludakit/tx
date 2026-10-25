@@ -2,7 +2,9 @@ package io.github.fludakit.tx.jpa;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import io.github.fludakit.tx.jpa.JpaBootstrap;
 import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionCallback;
 import jakarta.persistence.*;
@@ -31,10 +33,9 @@ class JpaTransactionManagerTest {
         config.setPassword("");
         dataSource = new HikariDataSource(config);
 
-        Map<String, Object> props = new HashMap<>();
-        props.put("hibernate.connection.datasource", dataSource);
-
-        emf = Persistence.createEntityManagerFactory("test", props);
+        emf = JpaBootstrap.create("test", dataSource, Map.of(
+                "hibernate.hbm2ddl.auto", "create",
+                "hibernate.dialect", "org.hibernate.dialect.H2Dialect"));
     }
 
     @AfterAll
@@ -169,5 +170,49 @@ class JpaTransactionManagerTest {
 
         public Long getId() { return id; }
         public String getName() { return name; }
+    }
+
+    @Test
+    void getTransaction_extractorFailure_rollsBackClosesAndThrows() {
+        // the extractor throws IllegalStateException - not the PersistenceException the old
+        // code caught - so the begun EntityTransaction and EntityManager used to leak
+        java.util.concurrent.atomic.AtomicReference<EntityManager> created =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        ConnectionExtractor throwing = em -> {
+            created.set(em);
+            throw new IllegalStateException("no connection for you");
+        };
+        JpaTransactionManager failing = new JpaTransactionManager(emf, dataSource, throwing);
+
+        assertThrows(TransactionSystemException.class, () ->
+                failing.getTransaction(TransactionDefinition.DEFAULT));
+
+        assertTrue(created.get() != null);
+        assertFalse(created.get().isOpen(), "the failed transaction's EntityManager must be closed");
+    }
+
+    @Test
+    void customConnectionExtractor_isHonored() throws Exception {
+        Connection custom = dataSource.getConnection();
+        ConnectionExtractor customExtractor = em -> custom;
+        JpaTransactionManager customizing = new JpaTransactionManager(emf, dataSource, customExtractor);
+
+        TransactionContext context = customizing.getTransaction(TransactionDefinition.DEFAULT);
+        assertSame(custom, context.getResource(Connection.class));
+
+        context.getCallbacks().forEach(
+                s -> s.afterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK));
+        custom.close();
+    }
+
+    @Test
+    void defaultExtractor_extractsFromHibernateEntityManager() {
+        EntityManager em = emf.createEntityManager();
+        try {
+            Connection extracted = ConnectionExtractor.DEFAULT.extract(em);
+            assertNotNull(extracted, "the DEFAULT extractor must produce a connection for Hibernate");
+        } finally {
+            em.close();
+        }
     }
 }
