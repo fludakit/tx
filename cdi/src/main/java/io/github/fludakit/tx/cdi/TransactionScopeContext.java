@@ -67,8 +67,6 @@ import java.util.Map;
  */
 public class TransactionScopeContext implements jakarta.enterprise.context.spi.Context {
 
-    private static final String BEANS_KEY = TransactionScopeContext.class.getName() + ".beans";
-
     @Override
     public Class<? extends Annotation> getScope() {
         return TransactionScoped.class;
@@ -105,10 +103,10 @@ public class TransactionScopeContext implements jakarta.enterprise.context.spi.C
             throw new IllegalStateException("No active transaction for @TransactionScoped bean");
         }
 
-        BeanStore store = (BeanStore) ctx.getResource(BEANS_KEY);
+        BeanStore store = ctx.getResource(BeanStore.class);
         if (store == null) {
             store = new BeanStore();
-            ctx.bindResource(BEANS_KEY, store);
+            ctx.bindResource(BeanStore.class, store);
             ctx.registerCallback(store);
         }
         return store;

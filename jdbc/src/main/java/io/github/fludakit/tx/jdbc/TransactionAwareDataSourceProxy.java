@@ -57,7 +57,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection() throws SQLException {
         TransactionContext ctx = TransactionContextHolder.get();
         if (ctx != null && ctx.isActualTransactionActive()) {
-            Connection txConnection = ctx.getResource(delegate, Connection.class);
+            Connection txConnection = ctx.getResource(Connection.class);
             if (txConnection == null) {
                 txConnection = joinTransaction();
             }
@@ -71,7 +71,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         boolean bound = false;
         try {
             connection.setAutoCommit(false);
-            TransactionContextHolder.get().bindResource(delegate, connection);
+            TransactionContextHolder.get().bindResource(Connection.class, connection);
             TransactionContextHolder.get().registerCallback(new ConnectionJoining(connection));
             bound = true;
             return connection;

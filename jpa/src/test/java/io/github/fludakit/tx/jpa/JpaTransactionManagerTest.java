@@ -60,10 +60,10 @@ class JpaTransactionManagerTest {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
 
         assertTrue(context.isActualTransactionActive());
-        assertInstanceOf(EntityManager.class, context.getResource(emf, EntityManager.class));
-        assertInstanceOf(Connection.class, context.getResource(dataSource, Connection.class));
+        assertInstanceOf(EntityManager.class, context.getResource(EntityManager.class));
+        assertInstanceOf(Connection.class, context.getResource(Connection.class));
 
-        EntityManager em = context.getResource(emf, EntityManager.class);
+        EntityManager em = context.getResource(EntityManager.class);
         assertTrue(em.isOpen());
         assertTrue(em.getTransaction().isActive());
 
@@ -73,7 +73,7 @@ class JpaTransactionManagerTest {
     @Test
     void commit_flushesAndPersists() throws Exception {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        EntityManager em = context.getResource(emf, EntityManager.class);
+        EntityManager em = context.getResource(EntityManager.class);
 
         em.persist(new TestItem(1L, "Alpha"));
 
@@ -90,7 +90,7 @@ class JpaTransactionManagerTest {
     @Test
     void rollback_revertsChanges() throws Exception {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        EntityManager em = context.getResource(emf, EntityManager.class);
+        EntityManager em = context.getResource(EntityManager.class);
 
         em.persist(new TestItem(2L, "Beta"));
 
@@ -107,7 +107,7 @@ class JpaTransactionManagerTest {
     @Test
     void afterCompletion_closesEntityManager() {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        EntityManager em = context.getResource(emf, EntityManager.class);
+        EntityManager em = context.getResource(EntityManager.class);
         assertTrue(em.isOpen());
 
         List<TransactionCallback> syncs = context.getCallbacks();
@@ -120,11 +120,11 @@ class JpaTransactionManagerTest {
     @Test
     void currentEntityManager_returnsBoundEm() {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        EntityManager expected = context.getResource(emf, EntityManager.class);
+        EntityManager expected = context.getResource(EntityManager.class);
 
         try {
             io.github.fludakit.tx.support.TransactionContextHolder.call(context, () -> {
-                EntityManager actual = JpaHelper.currentEntityManager(emf);
+                EntityManager actual = JpaHelper.currentEntityManager();
                 assertSame(expected, actual);
                 return null;
             });
@@ -138,12 +138,12 @@ class JpaTransactionManagerTest {
     @Test
     void currentEntityManager_throwsWhenNoBinding() {
         assertThrows(IllegalStateException.class,
-                () -> JpaHelper.currentEntityManager(emf));
+                () -> JpaHelper.currentEntityManager());
     }
 
     private void cleanup(TransactionContext context) {
         try {
-            EntityManager em = context.getResource(emf, EntityManager.class);
+            EntityManager em = context.getResource(EntityManager.class);
             if (em.getTransaction().isActive()) {
                 em.getTransaction().rollback();
             }

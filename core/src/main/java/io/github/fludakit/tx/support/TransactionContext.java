@@ -2,7 +2,7 @@ package io.github.fludakit.tx.support;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -16,122 +16,26 @@ import java.util.Map;
  * and completed flags.</p>
  *
  * <h2>Resource Storage</h2>
- * <p>Resources are stored in an {@link IdentityHashMap} keyed by owner identity (e.g., DataSource
- * or EntityManagerFactory instances). Identity-based storage prevents accidental collisions when
- * multiple resource owners are in use.</p>
+ * <p>One resource per type. There is no multi-datasource support — an application has one
+ * transactional resource of each type, so the type IS the key and no owner instance needs to be
+ * in hand. This also removes the CDI-proxy identity problem entirely: a proxy and its raw bean
+ * share the same type.</p>
  *
- * <h3>CDI Proxy Consideration</h3>
- * <p>CDI client proxies (injected for {@code @ApplicationScoped} beans) are different object
- * instances from the raw beans. Since {@code IdentityHashMap} uses {@code ==} for key comparison,
- * looking up a resource with a proxy key fails even though the raw instance was used as the key.</p>
+ * <p>Keys and values: {@code Connection.class} → the transaction's physical connection (bound by
+ * the JDBC manager, the proxy's lazy join, and the JPA manager's extraction alike, so mixed
+ * JDBC/JPA code joins one transaction), {@code EntityManager.class} → the bound
+ * {@code EntityManager}.</p>
  *
- * <p><b>Why not ConcurrentHashMap?</b> CDI proxies don't delegate {@code equals()} — they use the
- * default {@code Object.equals()} which is identity-based. So {@code proxyEmf.equals(rawEmf)}
- * returns {@code false}, and equality-based maps don't help.</p>
- *
- * <p><b>Why can't we unwrap CDI proxies?</b> There's no standard CDI API to unwrap a proxy to its
- * underlying instance. CDI proxies are designed to be transparent, and the underlying instance is
- * not accessible through the proxy interface.</p>
- *
- * <p><b>Workaround:</b> Use {@link #findResourceByType(Class)} to search by value instead of key.
- * This works for single-resource scenarios but cannot distinguish between multiple resources of
- * the same type.</p>
- *
- * <h2>Usage Patterns</h2>
+ * <h2>Usage</h2>
  * <pre>{@code
- * // Store resource (in PlatformTransactionManager.getTransaction())
+ * // Store resources (in PlatformTransactionManager.getTransaction())
  * TransactionContext ctx = new TransactionContext(true);
- * ctx.bindResource(dataSource, connection);
+ * ctx.bindResource(Connection.class, connection);
  * ctx.registerCallback(cleanupCallback);
  *
- * // Retrieve resource by key (type-safe, works with raw instance)
- * Connection conn = ctx.getResource(dataSource, Connection.class);
- *
- * // Retrieve resource by type (CDI proxy-safe, single-resource only)
- * EntityManager em = ctx.findResourceByType(EntityManager.class);
- * }</pre>
- *
- * <h3>Working with CDI Proxies</h3>
- * <p>When using CDI injection, the injected instance is a client proxy, not the raw bean. This
- * causes identity-based lookups to fail. Here are the recommended patterns:</p>
- *
- * <h4>Pattern 1: Use type-based lookup (recommended for single-resource)</h4>
- * <pre>{@code
- * @ApplicationScoped
- * public class UserService {
- *     @Inject
- *     private EntityManagerFactory emf;  // This is a CDI proxy
- *     
- *     @Transactional
- *     public void createUser(User user) {
- *         // Don't do this (fails with proxy):
- *         // EntityManager em = ctx.getResource(emf, EntityManager.class);
- *         
- *         // Do this instead (works with proxy):
- *         EntityManager em = JpaHelper.currentEntityManager();
- *         em.persist(user);
- *     }
- * }
- * }</pre>
- *
- * <h4>Pattern 2: Store raw instance reference (for multi-resource)</h4>
- * <pre>{@code
- * @ApplicationScoped
- * public class DatabaseConfig {
- *     private final EntityManagerFactory rawEmf;
- *     
- *     public DatabaseConfig() {
- *         this.rawEmf = Persistence.createEntityManagerFactory("myPU");
- *     }
- *     
- *     @Produces
- *     @ApplicationScoped
- *     public EntityManagerFactory entityManagerFactory() {
- *         return rawEmf;  // CDI will wrap this in a proxy
- *     }
- *     
- *     @Produces
- *     @ApplicationScoped
- *     public PlatformTransactionManager transactionManager() {
- *         // Use the raw instance, not the proxy
- *         return new JpaTransactionManager(rawEmf, dataSource);
- *     }
- *     
- *     // Provide access to raw instance for lookups
- *     public EntityManagerFactory getRawEntityManagerFactory() {
- *         return rawEmf;
- *     }
- * }
- * 
- * @ApplicationScoped
- * public class UserService {
- *     @Inject
- *     private DatabaseConfig config;
- *     
- *     @Transactional
- *     public void createUser(User user) {
- *         // Use raw instance for lookup
- *         EntityManager em = JpaHelper.currentEntityManager(
- *             config.getRawEntityManagerFactory());
- *         em.persist(user);
- *     }
- * }
- * }</pre>
- *
- * <h4>Pattern 3: Avoid CDI injection for EntityManagerFactory</h4>
- * <pre>{@code
- * @ApplicationScoped
- * public class UserService {
- *     // Don't inject EntityManagerFactory if you need it for lookups
- *     // @Inject private EntityManagerFactory emf;  // Bad: this is a proxy
- *     
- *     @Transactional
- *     public void createUser(User user) {
- *         // Use no-arg version instead
- *         EntityManager em = JpaHelper.currentEntityManager();
- *         em.persist(user);
- *     }
- * }
+ * // Retrieve a resource by type
+ * Connection conn = ctx.getResource(Connection.class);
+ * EntityManager em = ctx.getResource(EntityManager.class);
  * }</pre>
  */
 public final class TransactionContext {
@@ -148,7 +52,7 @@ public final class TransactionContext {
 
     private final boolean actualTransactionActive;
     private final boolean immutable;
-    private final Map<Object, Object> resources = new IdentityHashMap<>();
+    private final Map<Class<?>, Object> resources = new LinkedHashMap<>();
     private final List<TransactionCallback> callbacks = new ArrayList<>();
     private final List<Object> events = new ArrayList<>();
     private volatile boolean rollbackOnly;
@@ -167,79 +71,21 @@ public final class TransactionContext {
         return actualTransactionActive;
     }
 
-    public Object getResource(Object key) {
-        return resources.get(key);
-    }
-
     /**
-     * Retrieves the resource bound to the given key, cast to the expected type.
+     * Binds the transaction's resource under the given type key, replacing any previous binding.
      *
-     * <p>This is a type-safe convenience method that eliminates the need for explicit casting.
-     * The resource is looked up by key (identity-based) and cast to the specified type.</p>
-     *
-     * <h3>CDI Proxy Consideration</h3>
-     * <p>If the key is a CDI proxy, the lookup may fail because {@code IdentityHashMap} uses
-     * identity comparison. In such cases, use {@link #findResourceByType(Class)} instead.</p>
-     *
-     * @param key the key (resource owner) under which the resource was bound
-     * @param type the expected type of the resource
-     * @param <T> the resource type
-     * @return the resource cast to type {@code T}, or {@code null} if not found
-     * @throws ClassCastException if the resource is not assignable to the expected type
+     * <p>The value's type need not match the key ({@code DataSource.class} deliberately holds the
+     * transactional {@code Connection}); {@link #getResource(Class)} is the typed read.</p>
      */
-    public <T> T getResource(Object key, Class<T> type) {
-        Object resource = resources.get(key);
-        return resource == null ? null : type.cast(resource);
-    }
-
-    public void bindResource(Object key, Object value) {
+    public void bindResource(Class<?> type, Object value) {
         requireMutable("bindResource");
-        resources.put(key, value);
+        resources.put(type, value);
     }
 
-    public Object unbindResource(Object key) {
-        requireMutable("unbindResource");
-        return resources.remove(key);
-    }
-
-    /**
-     * Finds the first resource bound to the current transaction that matches the given type.
-     *
-     * <p>This method searches by value (using {@code instanceof}) instead of by key, which makes
-     * it safe for CDI proxy scenarios where the proxy instance differs from the raw instance used
-     * as the key.</p>
-     *
-     * <h3>Limitations</h3>
-     * <ul>
-     *   <li><b>Single-resource only:</b> If multiple resources of the same type are bound (e.g.,
-     *       multiple EntityManagers in a multi-EMF scenario), this method returns the first match
-     *       with no guarantee about which one.</li>
-     *   <li><b>Performance:</b> O(n) iteration instead of O(1) hash lookup.</li>
-     * </ul>
-     *
-     * <h3>When to use</h3>
-     * <ul>
-     *   <li>CDI proxy scenarios where the raw instance is not available</li>
-     *   <li>Single-resource scenarios (one DataSource, one EntityManagerFactory)</li>
-     *   <li>When you don't have a reference to the resource owner (key)</li>
-     * </ul>
-     *
-     * <h3>When NOT to use</h3>
-     * <ul>
-     *   <li>Multi-resource scenarios (multiple DataSources or EntityManagerFactories)</li>
-     *   <li>When you need a specific resource instance (use {@link #getResource(Object)} instead)</li>
-     * </ul>
-     *
-     * @param type the type of resource to find
-     * @return the first matching resource, or {@code null} if no matching resource is bound
-     */
-    public <T> T findResourceByType(Class<T> type) {
-        for (Object value : resources.values()) {
-            if (type.isInstance(value)) {
-                return type.cast(value);
-            }
-        }
-        return null;
+    /** The transaction's resource of the given type, or {@code null} if none is bound. */
+    public <T> T getResource(Class<T> type) {
+        Object resource = resources.get(type);
+        return resource == null ? null : type.cast(resource);
     }
 
     public void registerCallback(TransactionCallback callback) {
@@ -248,7 +94,7 @@ public final class TransactionContext {
     }
 
     /** Unmodifiable view of the bound resources; use {@link #bindResource} to add. */
-    public Map<Object, Object> getResources() {
+    public Map<Class<?>, Object> getResources() {
         return Collections.unmodifiableMap(resources);
     }
 

@@ -17,16 +17,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class TransactionContextTest {
 
     @Test
-    void bindGetUnbindResource() throws Exception {
+    void bindAndGetResourceByType() throws Exception {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
             TransactionContext ctx = TransactionContextHolder.get();
-            Object key = new Object();
             Object value = new Object();
 
-            ctx.bindResource(key, value);
-            assertSame(value, ctx.getResource(key));
-            assertSame(value, ctx.unbindResource(key));
-            assertNull(ctx.getResource(key));
+            ctx.bindResource(Object.class, value);
+            assertSame(value, ctx.getResource(Object.class));
+            // a second binding of the same type replaces the first
+            Object replacement = new Object();
+            ctx.bindResource(Object.class, replacement);
+            assertSame(replacement, ctx.getResource(Object.class));
+            assertNull(ctx.getResource(String.class));
             return null;
         });
     }

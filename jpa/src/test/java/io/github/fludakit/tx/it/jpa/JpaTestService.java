@@ -22,20 +22,20 @@ public class JpaTestService {
 
     @Transactional
     public void persistItem(long id, String name) {
-        EntityManager em = JpaHelper.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager();
         em.persist(new TestEntity(id, name));
     }
 
     @Transactional
     public void persistAndThrow(long id, String name) {
-        EntityManager em = JpaHelper.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager();
         em.persist(new TestEntity(id, name));
         throw new IllegalStateException("rollback");
     }
 
     @Transactional
     public void mixJpaAndJdbc(long jpaId, String jpaName, long jdbcId, String jdbcName) throws Exception {
-        EntityManager em = JpaHelper.currentEntityManager(emf);
+        EntityManager em = JpaHelper.currentEntityManager();
         em.persist(new TestEntity(jpaId, jpaName));
 
         try (Connection conn = dataSource.getConnection();

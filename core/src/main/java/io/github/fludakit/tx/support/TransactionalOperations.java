@@ -19,7 +19,7 @@ import io.github.fludakit.tx.TransactionDefinition;
  *         em.persist(user);
  *         
  *         // Can also use JDBC in the same transaction
- *         Connection conn = ctx.getResource(dataSource, Connection.class);
+ *         Connection conn = ctx.getResource(Connection.class);
  *         // ... JDBC operations ...
  *         
  *         return user.getId();

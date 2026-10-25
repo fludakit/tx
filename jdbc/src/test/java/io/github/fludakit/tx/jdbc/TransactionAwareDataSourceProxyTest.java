@@ -32,7 +32,7 @@ class TransactionAwareDataSourceProxyTest {
         Connection txConnection = dataSource.getConnection();
 
         TransactionContextHolder.call(new TransactionContext(true), () -> {
-            TransactionContextHolder.get().bindResource(dataSource, txConnection);
+            TransactionContextHolder.get().bindResource(Connection.class, txConnection);
             Connection got = proxy.getConnection();
             got.close();
             assertFalse(txConnection.isClosed(), "close must be suppressed inside a transaction");
@@ -50,7 +50,7 @@ class TransactionAwareDataSourceProxyTest {
         TransactionContextHolder.call(new TransactionContext(true), () -> {
             proxy.getConnection();
 
-            Connection bound = TransactionContextHolder.get().getResource(dataSource, Connection.class);
+            Connection bound = TransactionContextHolder.get().getResource(Connection.class);
             assertNotNull(bound, "a connection must be bound on join");
             assertFalse(bound.getAutoCommit());
             bound.close();
