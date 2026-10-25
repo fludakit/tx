@@ -1,8 +1,8 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
@@ -19,7 +19,7 @@ import jakarta.persistence.EntityTransaction;
 import jakarta.persistence.PersistenceException;
 
 /**
- * JPA-based {@link PlatformTransactionManager} that manages transactions through a standard
+ * JPA-based {@link TransactionManager} that manages transactions through a standard
  * {@link EntityManagerFactory}.
  *
  * <p>Provider-agnostic: uses only {@code jakarta.persistence} API for EntityManager lifecycle.
@@ -37,7 +37,7 @@ import jakarta.persistence.PersistenceException;
  * <p>This dual binding allows mixing JPA operations and plain JDBC SQL within the same
  * {@code @Transactional} method, both operating on the same physical connection.</p>
  */
-public class JpaTransactionManager implements PlatformTransactionManager {
+public class JpaTransactionManager implements TransactionManager<EntityManager> {
 
     private static final Logger LOG = Logger.getLogger(JpaTransactionManager.class.getName());
 
@@ -63,6 +63,16 @@ public class JpaTransactionManager implements PlatformTransactionManager {
 
     public DataSource getDataSource() {
         return dataSource;
+    }
+
+    /**
+     * The {@link EntityManager} bound to the given transaction. Outside an active transaction
+     * (the shared non-transactional sentinel) there is no bound EntityManager — returns
+     * {@code null}.
+     */
+    @Override
+    public EntityManager getResource(TransactionContext context) {
+        return context.getResource(EntityManager.class);
     }
 
     @Override

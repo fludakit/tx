@@ -3,12 +3,12 @@
  *
  * <p>This package provides a lightweight transaction management SPI and support classes for
  * managing resource-local transactions (JDBC, JPA) without requiring a full JTA implementation.
- * The main entry point is {@link io.github.fludakit.tx.PlatformTransactionManager}, which
+ * The main entry point is {@link io.github.fludakit.tx.TransactionManager}, which
  * defines the contract for starting, committing, and rolling back transactions.</p>
  *
  * <h2>Core Concepts</h2>
  * <ul>
- *   <li>{@link io.github.fludakit.tx.PlatformTransactionManager} — SPI for transaction lifecycle management</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionManager} — SPI for transaction lifecycle management</li>
  *   <li>{@link io.github.fludakit.tx.TransactionDefinition} — Transaction propagation and isolation settings</li>
  *   <li>{@link io.github.fludakit.tx.support.TransactionContext} — Holds bound resources and callbacks for a transaction</li>
  *   <li>{@link io.github.fludakit.tx.support.TransactionCallback} — Lifecycle hooks (beforeCommit, afterCompletion, etc.)</li>
@@ -18,7 +18,7 @@
  * <h2>Usage with CDI</h2>
  * <p>In Jakarta EE environments, use the {@code @Transactional} annotation to declaratively
  * manage transactions. The CDI interceptor handles propagation and delegates to the appropriate
- * {@code PlatformTransactionManager}:</p>
+ * {@code TransactionManager}:</p>
  * <pre>{@code
  * @ApplicationScoped
  * public class UserService {
@@ -33,15 +33,17 @@
  * }</pre>
  *
  * <h2>Programmatic Usage</h2>
- * <p>For programmatic control, inject {@link io.github.fludakit.tx.support.TransactionalOperations}:</p>
+ * <p>For programmatic control, inject {@link io.github.fludakit.tx.support.TransactionalOperations}
+ * — the execute callback receives the transaction's backing resource directly:</p>
  * <pre>{@code
  * @Inject
- * private TransactionalOperations txOps;
+ * private TransactionalOperations<DataSource> txOps;
  *
  * public void transferMoney(Long fromId, Long toId, BigDecimal amount) {
- *     txOps.execute(ctx -> {
- *         Connection conn = ctx.getResource(Connection.class);
- *         // ... perform transfer ...
+ *     txOps.execute(ds -> {
+ *         try (Connection conn = ds.getConnection()) {   // joins the active transaction
+ *             // ... perform transfer ...
+ *         }
  *         return null;
  *     });
  * }
@@ -65,12 +67,12 @@
  * </ul>
  *
  * <h2>Resource Binding</h2>
- * <p>Each {@code PlatformTransactionManager} binds its resource (Connection, EntityManager)
+ * <p>Each {@code TransactionManager} binds its resource (Connection, EntityManager)
  * to the {@link io.github.fludakit.tx.support.TransactionContext}, keyed by type. Use
  * {@link io.github.fludakit.tx.support.TransactionContext#getResource(Class)} to retrieve
  * the bound resource in a type-safe manner.</p>
  *
- * @see io.github.fludakit.tx.PlatformTransactionManager
+ * @see io.github.fludakit.tx.TransactionManager
  * @see io.github.fludakit.tx.TransactionDefinition
  * @see io.github.fludakit.tx.support.TransactionContext
  * @see io.github.fludakit.tx.support.TransactionalOperations

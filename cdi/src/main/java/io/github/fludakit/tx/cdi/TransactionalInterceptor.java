@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.cdi;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
@@ -32,7 +32,7 @@ import jakarta.transaction.TransactionalException;
 public class TransactionalInterceptor {
 
     @Inject
-    private PlatformTransactionManager transactionManager;
+    private TransactionManager<?> transactionManager;
 
     @Inject
     private TransactionalObserverRegistry observerRegistry;

@@ -2,13 +2,14 @@ package io.github.fludakit.tx.it.jpa;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
 import io.github.fludakit.tx.jpa.JpaTransactionManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Named;
+import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Persistence;
 
@@ -57,7 +58,7 @@ public class JpaTestConfig {
 
     @Produces
     @ApplicationScoped
-    public PlatformTransactionManager transactionManager() {
+    public TransactionManager<EntityManager> transactionManager() {
         return new JpaTransactionManager(emf, rawPool);
     }
 }

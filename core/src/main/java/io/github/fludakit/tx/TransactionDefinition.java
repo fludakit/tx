@@ -4,7 +4,7 @@ import jakarta.transaction.Transactional;
 
 /**
  * Immutable transaction attributes, built from a {@link Transactional} annotation and consumed by
- * {@link PlatformTransactionManager#getTransaction(TransactionDefinition)}.
+ * {@link TransactionManager#getTransaction(TransactionDefinition)}.
  *
  * <p>Defaults to {@code REQUIRED} with empty rollback rules and {@code readOnly = false}.</p>
  */

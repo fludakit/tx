@@ -1,31 +1,34 @@
 package io.github.fludakit.tx.support;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
+import io.github.fludakit.tx.TransactionManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DefaultTransactionalOperationsTest {
 
+    private static final String RESOURCE = "resource";
+
     private StubTransactionManager txManager;
-    private DefaultTransactionalOperations txOps;
+    private DefaultTransactionalOperations<String> txOps;
 
     @BeforeEach
     void setUp() {
         txManager = new StubTransactionManager();
-        txOps = new DefaultTransactionalOperations(txManager);
+        txOps = new DefaultTransactionalOperations<>(txManager);
     }
 
     @Test
     void execute_required_createsNewTransaction() throws Exception {
-        String result = txOps.execute(ctx -> {
-            assertTrue(ctx.isActualTransactionActive());
+        String result = txOps.execute(res -> {
+            assertSame(RESOURCE, res);
             return "done";
         });
 
@@ -39,8 +42,8 @@ class DefaultTransactionalOperationsTest {
     void execute_required_joinsExisting() throws Exception {
         TransactionContext outer = txManager.getTransaction(TransactionDefinition.DEFAULT);
         TransactionContextHolder.call(outer, () -> {
-            String result = txOps.execute(ctx -> {
-                assertSame(outer, ctx);
+            String result = txOps.execute(res -> {
+                assertSame(RESOURCE, res);
                 return "joined";
             });
             assertEquals("joined", result);
@@ -58,11 +61,7 @@ class DefaultTransactionalOperationsTest {
                     jakarta.transaction.Transactional.TxType.REQUIRES_NEW,
                     new Class[0], new Class[0], false);
 
-            String result = txOps.execute(def, ctx -> {
-                assertNotSame(outer, ctx);
-                assertTrue(ctx.isActualTransactionActive());
-                return "new";
-            });
+            String result = txOps.execute(def, res -> "new");
 
             assertEquals("new", result);
             assertEquals(2, txManager.beginCount);
@@ -74,7 +73,7 @@ class DefaultTransactionalOperationsTest {
     @Test
     void execute_runtimeException_triggersRollback() {
         assertThrows(IllegalStateException.class, () ->
-                txOps.execute(ctx -> {
+                txOps.execute(res -> {
                     throw new IllegalStateException("boom");
                 })
         );
@@ -86,8 +85,11 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void execute_rollbackOnly_forcesRollback() throws Exception {
-        txOps.execute(ctx -> {
-            ctx.setRollbackOnly();
+        TransactionContextHolder.call(txManager.getTransaction(TransactionDefinition.DEFAULT), () -> {
+            txOps.execute(res -> {
+                TransactionContextHolder.get().setRollbackOnly();
+                return null;
+            });
             return null;
         });
 
@@ -102,7 +104,7 @@ class DefaultTransactionalOperationsTest {
                 new Class[0], new Class[0], false);
 
         assertThrows(TransactionException.class, () ->
-                txOps.execute(def, ctx -> "should not reach")
+                txOps.execute(def, res -> "should not reach")
         );
 
         assertEquals(0, txManager.beginCount);
@@ -117,7 +119,7 @@ class DefaultTransactionalOperationsTest {
                     new Class[0], new Class[0], false);
 
             assertThrows(TransactionException.class, () ->
-                    txOps.execute(def, ctx -> "should not reach")
+                    txOps.execute(def, res -> "should not reach")
             );
             return null;
         });
@@ -126,22 +128,24 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void executeRead_usesReadOnlyDefinition() throws Exception {
-        txOps.executeRead(ctx -> {
-            assertTrue(ctx.isActualTransactionActive());
+        txOps.executeRead(res -> {
+            assertSame(RESOURCE, res);
             return null;
         });
 
+        assertEquals(Boolean.TRUE, txManager.lastReadOnlyFlag);
         assertEquals(1, txManager.beginCount);
         assertEquals(1, txManager.commitCount);
     }
 
     @Test
     void executeWrite_usesDefaultDefinition() throws Exception {
-        txOps.executeWrite(ctx -> {
-            assertTrue(ctx.isActualTransactionActive());
+        txOps.executeWrite(res -> {
+            assertSame(RESOURCE, res);
             return null;
         });
 
+        assertEquals(Boolean.FALSE, txManager.lastReadOnlyFlag);
         assertEquals(1, txManager.beginCount);
         assertEquals(1, txManager.commitCount);
     }
@@ -153,14 +157,16 @@ class DefaultTransactionalOperationsTest {
         }
     }
 
-    private static class StubTransactionManager implements PlatformTransactionManager {
+    private static class StubTransactionManager implements TransactionManager<String> {
         int beginCount;
         int commitCount;
         int rollbackCount;
+        Boolean lastReadOnlyFlag;
 
         @Override
         public TransactionContext getTransaction(TransactionDefinition definition) {
             beginCount++;
+            lastReadOnlyFlag = definition.readOnly();
             TransactionContext context = new TransactionContext(true);
             context.registerCallback(new TransactionCallback() {});
             return context;
@@ -174,6 +180,11 @@ class DefaultTransactionalOperationsTest {
         @Override
         public void rollback(TransactionContext context) {
             rollbackCount++;
+        }
+
+        @Override
+        public String getResource(TransactionContext context) {
+            return RESOURCE;
         }
     }
 }

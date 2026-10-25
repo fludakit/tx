@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.it.scoped;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
 import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
@@ -93,7 +93,7 @@ class TransactionScopedTest {
 
         @Produces
         @ApplicationScoped
-        public PlatformTransactionManager transactionManager(DataSource ds) {
+        public TransactionManager<DataSource> transactionManager(DataSource ds) {
             return new DataSourceTransactionManager(ds);
         }
     }

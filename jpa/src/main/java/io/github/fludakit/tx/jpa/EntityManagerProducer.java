@@ -56,7 +56,7 @@ import java.lang.reflect.Proxy;
  *
  *     @Produces
  *     @ApplicationScoped
- *     public PlatformTransactionManager transactionManager(DataSource ds) {
+ *     public TransactionManager transactionManager(DataSource ds) {
  *         return new JpaTransactionManager(emf, ds);
  *     }
  * }

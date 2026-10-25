@@ -1,7 +1,7 @@
 package io.github.fludakit.tx.jdbc;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionCallback;
@@ -14,26 +14,35 @@ import java.util.logging.Logger;
 import javax.sql.DataSource;
 
 /**
- * Resource-local {@link PlatformTransactionManager} for a JDBC {@link DataSource}.
+ * Resource-local {@link TransactionManager} for a JDBC {@link DataSource}.
  *
  * <p>Constructed from the raw {@code DataSource} (the connection pool). {@code getTransaction} opens
- * a connection, disables auto-commit, binds it to the returned {@link TransactionContext} under the
- * {@code DataSource} as key, and registers a callback that releases the connection on
- * completion. The companion {@link TransactionAwareDataSourceProxy} returns that bound connection
- * (suppressing {@code close()}) so plain JDBC code joins the transaction transparently.</p>
+ * a connection, disables auto-commit, binds it to the returned {@link TransactionContext} under
+ * {@code Connection.class}, and registers a callback that releases the connection on completion.
+ * {@link #getResource(TransactionContext)} hands callers a transaction-aware {@code DataSource}
+ * view whose {@code getConnection()} returns that bound connection (suppressing {@code close()})
+ * so plain JDBC code joins the transaction transparently — also outside any transaction, where
+ * it simply delegates to the pool.</p>
  */
-public class DataSourceTransactionManager implements PlatformTransactionManager {
+public class DataSourceTransactionManager implements TransactionManager<DataSource> {
 
     private static final Logger LOG = Logger.getLogger(DataSourceTransactionManager.class.getName());
 
     private final DataSource dataSource;
+    private final TransactionAwareDataSourceProxy awareDataSource;
 
     public DataSourceTransactionManager(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
+        this.awareDataSource = new TransactionAwareDataSourceProxy(this.dataSource);
     }
 
     public DataSource getDataSource() {
         return dataSource;
+    }
+
+    @Override
+    public DataSource getResource(TransactionContext context) {
+        return awareDataSource;
     }
 
     @Override

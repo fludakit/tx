@@ -2,7 +2,7 @@ package io.github.fludakit.tx.it.config;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
 
@@ -14,7 +14,7 @@ import jakarta.inject.Named;
 
 /**
  * Single-DataSource CDI/DB support: raw pool, transaction-aware proxy (default {@code DataSource}),
- * and the {@link PlatformTransactionManager} built over the raw pool.
+ * and the {@link TransactionManager} built over the raw pool.
  */
 @ApplicationScoped
 public class ApplicationDatabaseConfig {
@@ -46,7 +46,7 @@ public class ApplicationDatabaseConfig {
 
     @Produces
     @ApplicationScoped
-    public PlatformTransactionManager transactionManager() {
+    public TransactionManager<DataSource> transactionManager() {
         return new DataSourceTransactionManager(underlyingPool);
     }
 }

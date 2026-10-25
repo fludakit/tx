@@ -22,7 +22,7 @@ package io.github.fludakit.tx.support;
  *
  * <h2>Registration</h2>
  * <p>Callbacks are registered via {@link TransactionContext#registerCallback(TransactionCallback)}.
- * They are typically registered by {@link io.github.fludakit.tx.PlatformTransactionManager}
+ * They are typically registered by {@link io.github.fludakit.tx.TransactionManager}
  * implementations when resources are bound to the transaction context.</p>
  *
  * <h2>Example</h2>
@@ -38,7 +38,7 @@ package io.github.fludakit.tx.support;
  *     }
  * }
  * 
- * // Register in PlatformTransactionManager.getTransaction()
+ * // Register in TransactionManager.getTransaction()
  * context.registerCallback(new CacheCleanupCallback(cache));
  * }</pre>
  *
