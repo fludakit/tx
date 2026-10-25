@@ -79,9 +79,9 @@ public class JpaTransactionManager implements PlatformTransactionManager {
             Connection connection = connectionExtractor.extract(em);
 
             TransactionContext context = new TransactionContext(true);
-            context.getResources().put(entityManagerFactory, em);
-            context.getResources().put(dataSource, connection);
-            context.getCallbacks().add(new EntityManagerCleanup(em));
+            context.bindResource(entityManagerFactory, em);
+            context.bindResource(dataSource, connection);
+            context.registerCallback(new EntityManagerCleanup(em));
             return context;
         } catch (RuntimeException ex) {
             // begin() may have started a transaction and the extractor may throw before anything

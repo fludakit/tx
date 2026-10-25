@@ -116,7 +116,7 @@ class TransactionLifecycleTest {
                 throw beginFailure;
             }
             TransactionContext context = new TransactionContext(true);
-            context.getCallbacks().add(new TransactionCallback() {
+            context.registerCallback(new TransactionCallback() {
                 @Override
                 public void afterCompletion(CompletionStatus status) {
                     afterCompletionCount++;

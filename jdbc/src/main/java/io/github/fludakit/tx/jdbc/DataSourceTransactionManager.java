@@ -57,8 +57,8 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }
         TransactionContext context = new TransactionContext(true);
-        context.getResources().put(dataSource, connection);
-        context.getCallbacks().add(new ConnectionCleanup(connection));
+        context.bindResource(dataSource, connection);
+        context.registerCallback(new ConnectionCleanup(connection));
         return context;
     }
 
