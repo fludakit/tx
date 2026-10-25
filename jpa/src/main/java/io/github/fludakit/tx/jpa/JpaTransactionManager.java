@@ -1,8 +1,11 @@
 package io.github.fludakit.tx.jpa;
 
+import io.github.fludakit.tx.JdbcSavepoint;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionSavepointManager;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
@@ -10,6 +13,7 @@ import io.github.fludakit.tx.support.TransactionContextHolder;
 import io.github.fludakit.tx.support.TransactionStatus;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -29,14 +33,14 @@ import jakarta.persistence.PersistenceException;
  * configurable {@link ConnectionExtractor}. Both the EntityManager and the Connection are
  * bound to the {@link TransactionContext}:</p>
  * <ul>
- *   <li>EntityManager is bound under the {@code EntityManagerFactory} key — retrieve via
- *       {@link #currentEntityManager(EntityManagerFactory)}</li>
- *   <li>Connection is bound under the {@code DataSource} key — enabling JDBC fallback through
+ *   <li>EntityManager is bound under {@code EntityManager.class} — retrieve via
+ *       {@link #getResource(TransactionContext)} or {@link JpaHelper#currentEntityManager()}</li>
+ *   <li>Connection is bound under {@code Connection.class} — enabling JDBC fallback through
  *       {@code TransactionAwareDataSourceProxy}</li>
  * </ul>
  *
  * <p>This dual binding allows mixing JPA operations and plain JDBC SQL within the same
- * {@code @Transactional} method, both operating on the same physical connection.</p>
+ * transaction, both operating on the same physical connection.</p>
  */
 public class JpaTransactionManager implements TransactionManager<EntityManager> {
 
@@ -67,13 +71,60 @@ public class JpaTransactionManager implements TransactionManager<EntityManager> 
     }
 
     /**
-     * The {@link EntityManager} bound to the given transaction. Outside an active transaction
-     * (the shared non-transactional sentinel) there is no bound EntityManager — returns
-     * {@code null}.
+     * The {@link EntityManager} bound to the transaction on the current thread. Outside an
+     * active transaction there is no bound EntityManager — returns {@code null}.
      */
     @Override
-    public EntityManager getResource(TransactionContext context) {
-        return context.getResource(EntityManager.class);
+    public EntityManager getResource() {
+        TransactionContext ctx = TransactionContextHolder.get();
+        return ctx != null ? ctx.getResource(EntityManager.class) : null;
+    }
+
+    private static final String SAVEPOINT_PREFIX = "fluda_sp_";
+
+    private int savepointCounter;
+
+    /**
+     * JDBC savepoints over the extracted connection — inherited from whatever the driver offers.
+     * Providers that intercept SQL at a level savepoints bypass may not observe the partial
+     * rollback in their persistence context; flush the persistence context before a nested
+     * section that relies on it.
+     */
+    private final class ConnectionSavepointManager implements TransactionSavepointManager {
+
+        private final Connection connection;
+
+        ConnectionSavepointManager(Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public TransactionSavepoint createSavepoint() {
+            try {
+                String name = SAVEPOINT_PREFIX + ++savepointCounter;
+                return new JdbcSavepoint(connection.setSavepoint(name), name);
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not create JDBC savepoint", ex);
+            }
+        }
+
+        @Override
+        public void rollbackToSavepoint(TransactionSavepoint savepoint) {
+            try {
+                connection.rollback(((JdbcSavepoint) savepoint).jdbcSavepoint());
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not roll back to JDBC savepoint", ex);
+            }
+        }
+
+        @Override
+        public void releaseSavepoint(TransactionSavepoint savepoint) {
+            try {
+                connection.releaseSavepoint(((JdbcSavepoint) savepoint).jdbcSavepoint());
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not release JDBC savepoint", ex);
+            }
+        }
     }
 
     @Override
@@ -89,7 +140,8 @@ public class JpaTransactionManager implements TransactionManager<EntityManager> 
 
             Connection connection = connectionExtractor.extract(em);
 
-            TransactionContext context = new TransactionContext(true, TransactionStatus.initial(definition));
+            TransactionContext context = new TransactionContext(true, TransactionStatus.initial(
+                    definition, new ConnectionSavepointManager(connection)));
             context.bindResource(EntityManager.class, em);
             context.bindResource(Connection.class, connection);
             context.registerCallback(new EntityManagerCleanup(em));

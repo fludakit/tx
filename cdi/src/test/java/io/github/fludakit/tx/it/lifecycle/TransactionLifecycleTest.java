@@ -142,7 +142,7 @@ class TransactionLifecycleTest {
         }
 
         @Override
-        public String getResource(TransactionContext context) {
+        public String getResource() {
             return "stub-resource";
         }
     }

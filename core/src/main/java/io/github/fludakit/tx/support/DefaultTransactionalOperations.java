@@ -3,6 +3,7 @@ package io.github.fludakit.tx.support;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.TransactionSavepoint;
 
 import jakarta.transaction.Transactional;
 
@@ -58,35 +59,60 @@ public class DefaultTransactionalOperations<T> implements TransactionalOperation
         boolean active = ctx != null && ctx.isActualTransactionActive();
 
         return switch (propagation) {
-            case REQUIRED -> active ? execution.call(transactionManager.getResource(ctx)) : executeNew(definition, execution);
+            case REQUIRED -> active ? execution.call(transactionManager.getResource(), ctx.getStatus()) : executeNew(definition, execution);
             case REQUIRES_NEW -> executeNew(definition, execution);
             case SUPPORTS -> active
-                    ? execution.call(transactionManager.getResource(ctx))
-                    : execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
+                    ? execution.call(transactionManager.getResource(), ctx.getStatus())
+                    : execution.call(transactionManager.getResource(), TransactionContext.NON_TRANSACTIONAL.getStatus());
             case NOT_SUPPORTED -> active
                     ? TransactionContextHolder.call(TransactionContext.NON_TRANSACTIONAL,
-                            () -> execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL)))
-                    : execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
+                            () -> execution.call(transactionManager.getResource(), TransactionContext.NON_TRANSACTIONAL.getStatus()))
+                    : execution.call(transactionManager.getResource(), TransactionContext.NON_TRANSACTIONAL.getStatus());
             case MANDATORY -> {
                 if (!active) {
                     throw new TransactionException("No active transaction (MANDATORY)");
                 }
-                yield execution.call(transactionManager.getResource(ctx));
+                yield execution.call(transactionManager.getResource(), ctx.getStatus());
             }
             case NEVER -> {
                 if (active) {
                     throw new TransactionException("Active transaction not allowed (NEVER)");
                 }
-                yield execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
+                yield execution.call(transactionManager.getResource(), TransactionContext.NON_TRANSACTIONAL.getStatus());
             }
         };
+    }
+
+    @Override
+    public <R> R executeNested(TransactionExecution<T, R> execution) throws Exception {
+        TransactionContext ctx = TransactionContextHolder.get();
+        boolean active = ctx != null && ctx.isActualTransactionActive();
+        if (!active) {
+            // nothing to nest into: a full transaction, no savepoint to scope
+            return executeNew(TransactionDefinition.withDefaults(), execution);
+        }
+        TransactionStatus status = ctx.getStatus();
+        TransactionSavepoint savepoint = status.createSavepoint();
+        try {
+            R result = execution.call(transactionManager.getResource(), status);
+            status.releaseSavepoint(savepoint);
+            return result;
+        } catch (Throwable failure) {
+            try {
+                status.rollbackToSavepoint(savepoint);
+            } catch (RuntimeException rollbackEx) {
+                failure.addSuppressed(rollbackEx);
+            }
+            // the surrounding transaction stays active: a nested failure is scoped to the savepoint
+            throw rethrow(failure);
+        }
     }
 
     private <R> R executeNew(TransactionDefinition definition, TransactionExecution<T, R> execution) throws Exception {
         TransactionContext context = transactionManager.getTransaction(definition);
         return TransactionContextHolder.call(context, () -> {
             try {
-                R result = execution.call(transactionManager.getResource(context));
+                R result = execution.call(transactionManager.getResource(), context.getStatus());
                 complete(context, definition, null);
                 return result;
             } catch (Throwable failure) {

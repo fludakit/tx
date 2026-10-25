@@ -40,7 +40,7 @@
  * private TransactionalOperations<DataSource> txOps;
  *
  * public void transferMoney(Long fromId, Long toId, BigDecimal amount) {
- *     txOps.execute(ds -> {
+ *     txOps.execute((ds, status) -> {
  *         try (Connection conn = ds.getConnection()) {   // joins the active transaction
  *             // ... perform transfer ...
  *         }
