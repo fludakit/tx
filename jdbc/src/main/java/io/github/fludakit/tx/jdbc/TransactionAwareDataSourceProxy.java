@@ -57,11 +57,17 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection() throws SQLException {
         TransactionContext ctx = TransactionContextHolder.get();
         if (ctx != null && ctx.isActualTransactionActive()) {
-            Connection txConnection = ctx.getResource(Connection.class);
-            if (txConnection == null) {
-                txConnection = joinTransaction();
+            if (ctx.isCompleted()) {
+                // a completed context still bound to the thread (a leftover binding on a pooled
+                // thread) must not hand out its closed connection — fall through to the pool
+                LOG.warning("Ignoring a completed transaction context bound to the current thread");
+            } else {
+                Connection txConnection = ctx.getResource(Connection.class);
+                if (txConnection == null) {
+                    txConnection = joinTransaction();
+                }
+                return closeSuppressingProxy(txConnection);
             }
-            return closeSuppressingProxy(txConnection);
         }
         return delegate.getConnection();
     }

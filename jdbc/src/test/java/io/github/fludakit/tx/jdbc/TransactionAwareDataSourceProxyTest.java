@@ -1,5 +1,6 @@
 package io.github.fludakit.tx.jdbc;
 
+import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
 import org.h2.jdbcx.JdbcDataSource;
@@ -10,6 +11,7 @@ import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionAwareDataSourceProxyTest {
@@ -54,6 +56,27 @@ class TransactionAwareDataSourceProxyTest {
             assertNotNull(bound, "a connection must be bound on join");
             assertFalse(bound.getAutoCommit());
             bound.close();
+            return null;
+        });
+    }
+
+    @Test
+    void completedContextOnThread_doesNotHandOutItsConnection() throws Exception {
+        DataSource dataSource = newDataSource("proxy4");
+        DataSource proxy = new TransactionAwareDataSourceProxy(dataSource);
+        Connection closedTxConnection = dataSource.getConnection();
+        closedTxConnection.close();
+
+        TransactionContext completed = new TransactionContext(true);
+        completed.bindResource(Connection.class, closedTxConnection);
+        completed.markCompleted(TransactionCallback.CompletionStatus.COMMITTED);
+        // simulate a leftover binding on a pooled thread: the context stays bound after completion
+        TransactionContextHolder.call(completed, () -> {
+            Connection fresh = proxy.getConnection();
+            assertFalse(fresh.isClosed(), "a completed context must not hand out its closed connection");
+            assertNotSame(closedTxConnection, fresh);
+            fresh.close();
+            assertTrue(fresh.isClosed(), "outside an active transaction close must be real");
             return null;
         });
     }
