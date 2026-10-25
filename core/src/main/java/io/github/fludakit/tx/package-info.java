@@ -40,7 +40,7 @@
  *
  * public void transferMoney(Long fromId, Long toId, BigDecimal amount) {
  *     txOps.execute(ctx -> {
- *         Connection conn = ctx.getResource(dataSource, Connection.class);
+ *         Connection conn = ctx.getResource(Connection.class);
  *         // ... perform transfer ...
  *         return null;
  *     });
@@ -66,9 +66,9 @@
  *
  * <h2>Resource Binding</h2>
  * <p>Each {@code PlatformTransactionManager} binds its resource (Connection, EntityManager)
- * to the {@link io.github.fludakit.tx.support.TransactionContext}. Use
- * {@link io.github.fludakit.tx.support.TransactionContext#getResource(Object, Class)} to retrieve
- * bound resources in a type-safe manner.</p>
+ * to the {@link io.github.fludakit.tx.support.TransactionContext}, keyed by type. Use
+ * {@link io.github.fludakit.tx.support.TransactionContext#getResource(Class)} to retrieve
+ * the bound resource in a type-safe manner.</p>
  *
  * @see io.github.fludakit.tx.PlatformTransactionManager
  * @see io.github.fludakit.tx.TransactionDefinition

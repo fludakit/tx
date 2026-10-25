@@ -19,7 +19,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  * <ol>
  *   <li><b>Resource binding:</b> In {@link #getTransaction(TransactionDefinition)}, open the
  *       resource (Connection, EntityManager, etc.) and bind it to the returned
- *       {@link TransactionContext} using {@link TransactionContext#bindResource(Object, Object)}.
+ *       {@link TransactionContext} using {@link TransactionContext#bindResource(Class, Object)}.
  *       Use the resource owner (DataSource, EntityManagerFactory) as the key.</li>
  *   <li><b>Cleanup callback:</b> Register a {@link io.github.fludakit.tx.support.TransactionCallback}
  *       to release the resource in {@code afterCompletion}. This ensures cleanup even if the
@@ -41,7 +41,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  *         conn.setAutoCommit(false);
  *         
  *         TransactionContext context = new TransactionContext(true);
- *         context.bindResource(dataSource, conn);
+ *         context.bindResource(Connection.class, conn);
  *         context.registerCallback(new TransactionCallback() {
  *             @Override
  *             public void afterCompletion(CompletionStatus status) {
@@ -53,13 +53,13 @@ import io.github.fludakit.tx.support.TransactionContext;
  *     
  *     @Override
  *     public void commit(TransactionContext context) {
- *         Connection conn = context.getResource(dataSource, Connection.class);
+ *         Connection conn = context.getResource(Connection.class);
  *         conn.commit();
  *     }
  *     
  *     @Override
  *     public void rollback(TransactionContext context) {
- *         Connection conn = context.getResource(dataSource, Connection.class);
+ *         Connection conn = context.getResource(Connection.class);
  *         if (!conn.isClosed()) conn.rollback();
  *     }
  * }

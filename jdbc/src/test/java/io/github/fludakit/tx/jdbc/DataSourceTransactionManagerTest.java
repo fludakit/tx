@@ -24,7 +24,7 @@ class DataSourceTransactionManagerTest {
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
         assertTrue(context.isActualTransactionActive());
 
-        Connection bound = context.getResource(dataSource, Connection.class);
+        Connection bound = context.getResource(Connection.class);
         assertNotNull(bound);
         assertFalse(bound.getAutoCommit());
         bound.close();
@@ -39,7 +39,7 @@ class DataSourceTransactionManagerTest {
         assertDoesNotThrow(() -> manager.commit(context));
         assertDoesNotThrow(() -> manager.rollback(context));
 
-        Connection bound = context.getResource(dataSource, Connection.class);
+        Connection bound = context.getResource(Connection.class);
         bound.close();
     }
 
@@ -49,7 +49,7 @@ class DataSourceTransactionManagerTest {
         DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource);
 
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        Connection bound = context.getResource(dataSource, Connection.class);
+        Connection bound = context.getResource(Connection.class);
 
         context.getCallbacks()
                 .forEach(s -> s.afterCompletion(TransactionCallback.CompletionStatus.COMMITTED));

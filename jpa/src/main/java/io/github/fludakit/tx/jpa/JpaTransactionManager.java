@@ -79,8 +79,8 @@ public class JpaTransactionManager implements PlatformTransactionManager {
             Connection connection = connectionExtractor.extract(em);
 
             TransactionContext context = new TransactionContext(true);
-            context.bindResource(entityManagerFactory, em);
-            context.bindResource(dataSource, connection);
+            context.bindResource(EntityManager.class, em);
+            context.bindResource(Connection.class, connection);
             context.registerCallback(new EntityManagerCleanup(em));
             return context;
         } catch (RuntimeException ex) {
@@ -115,9 +115,9 @@ public class JpaTransactionManager implements PlatformTransactionManager {
     }
 
     private EntityManager boundEntityManager(TransactionContext context) {
-        EntityManager em = context.getResource(entityManagerFactory, EntityManager.class);
+        EntityManager em = context.getResource(EntityManager.class);
         if (em == null) {
-            throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
+            throw new IllegalStateException("No EntityManager bound to the active transaction");
         }
         return em;
     }

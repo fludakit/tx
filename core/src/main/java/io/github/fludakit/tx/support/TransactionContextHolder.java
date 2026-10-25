@@ -18,7 +18,7 @@ import java.util.concurrent.Callable;
  * <pre>{@code
  * // In PlatformTransactionManager.getTransaction()
  * TransactionContext context = new TransactionContext(true);
- * context.bindResource(dataSource, connection);
+ * context.bindResource(Connection.class, connection);
  * 
  * // In CDI interceptor or transaction boundary
  * return TransactionContextHolder.call(context, () -> {

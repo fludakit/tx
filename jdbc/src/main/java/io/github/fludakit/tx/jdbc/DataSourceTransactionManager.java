@@ -61,7 +61,7 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }
         TransactionContext context = new TransactionContext(true);
-        context.bindResource(dataSource, connection);
+        context.bindResource(Connection.class, connection);
         context.registerCallback(new ConnectionCleanup(connection, definition.readOnly()));
         return context;
     }
@@ -87,9 +87,9 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
     }
 
     private Connection boundConnection(TransactionContext context) {
-        Connection connection = context.getResource(dataSource, Connection.class);
+        Connection connection = context.getResource(Connection.class);
         if (connection == null) {
-            throw new IllegalStateException("No JDBC Connection bound for this DataSource");
+            throw new IllegalStateException("No JDBC Connection bound to the active transaction");
         }
         return connection;
     }

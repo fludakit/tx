@@ -5,7 +5,6 @@ import io.github.fludakit.tx.support.TransactionContextHolder;
 
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
@@ -75,26 +74,17 @@ import java.lang.reflect.Proxy;
  * invocation then resolves the transaction-bound EntityManager, so the proxy stays correct across
  * sequential transactions.</p>
  *
- * <h2>CDI Proxy Handling</h2>
- * <p>The injected {@code EntityManagerFactory} may be a CDI client proxy (for {@code @ApplicationScoped}
- * beans). The {@link JpaHelper#currentEntityManager(EntityManagerFactory)} method
- * handles this by falling back to type-based resource lookup when identity-based lookup fails.</p>
- *
  * @see JpaHelper#currentEntityManager()
- * @see JpaHelper#currentEntityManager(EntityManagerFactory)
  */
 @Dependent
 public class EntityManagerProducer {
-
-    @Inject
-    private EntityManagerFactory entityManagerFactory;
 
     /**
      * Produces a lazy-resolving {@link EntityManager} proxy.
      *
      * <p>The returned proxy defers EntityManager lookup until each method invocation.
      * When a method is called, it retrieves the EntityManager from the active
-     * {@link TransactionContext} via {@link JpaHelper#currentEntityManager(EntityManagerFactory)}.
+     * {@link TransactionContext} via {@link JpaHelper#currentEntityManager()}.
      * If no transaction is active, throws {@link IllegalStateException}.</p>
      *
      * @return a proxy that resolves to the transaction-scoped EntityManager on each use
@@ -105,7 +95,7 @@ public class EntityManagerProducer {
         return (EntityManager) Proxy.newProxyInstance(
                 EntityManager.class.getClassLoader(),
                 new Class<?>[] { EntityManager.class },
-                new LazyEntityManagerHandler(entityManagerFactory)
+                new LazyEntityManagerHandler()
         );
     }
 
@@ -116,20 +106,14 @@ public class EntityManagerProducer {
      * {@code @ApplicationScoped} client keeps this handler across transactions, and the
      * EntityManager bound to the first transaction is closed by that transaction's
      * {@code afterCompletion} — a cached instance would hand the second transaction a closed
-     * EntityManager. {@link JpaHelper#currentEntityManager(EntityManagerFactory)} is a cheap
-     * context lookup, so resolving per invocation costs nothing but a map read.</p>
+     * EntityManager. The lookup is by type, so no factory instance is needed and it costs
+     * nothing but a map read.</p>
      */
     private static class LazyEntityManagerHandler implements InvocationHandler {
 
-        private final EntityManagerFactory emf;
-
-        LazyEntityManagerHandler(EntityManagerFactory emf) {
-            this.emf = emf;
-        }
-
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            EntityManager em = JpaHelper.currentEntityManager(emf);
+            EntityManager em = JpaHelper.currentEntityManager();
             try {
                 return method.invoke(em, args);
             } catch (InvocationTargetException e) {
