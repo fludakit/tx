@@ -7,6 +7,7 @@ import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.support.TransactionStatus;
 
 import java.sql.Connection;
 import java.util.Objects;
@@ -88,7 +89,7 @@ public class JpaTransactionManager implements TransactionManager<EntityManager> 
 
             Connection connection = connectionExtractor.extract(em);
 
-            TransactionContext context = new TransactionContext(true);
+            TransactionContext context = new TransactionContext(true, TransactionStatus.initial(definition));
             context.bindResource(EntityManager.class, em);
             context.bindResource(Connection.class, connection);
             context.registerCallback(new EntityManagerCleanup(em));

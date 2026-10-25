@@ -15,7 +15,8 @@ import java.util.logging.Logger;
  * CDI transaction callback that replays buffered events to transactional observers.
  *
  * <p>This callback queries the {@link TransactionalObserverRegistry} for observers at each
- * phase and replays buffered events from the {@link TransactionContext} to matching observers.</p>
+ * phase and replays the events buffered in this transaction's {@link TransactionEventBuffer}
+ * to matching observers.</p>
  *
  * <p>Registered on each {@code TransactionContext} created by the interceptor, this callback
  * automatically replays buffered CDI events at the matching phase when the core lifecycle
@@ -25,12 +26,14 @@ final class TransactionEventReplay implements TransactionCallback {
 
     private static final Logger LOG = Logger.getLogger(TransactionEventReplay.class.getName());
 
-    private final TransactionContext context;
     private final TransactionalObserverRegistry registry;
+    private final TransactionEventBuffer buffer;
 
     TransactionEventReplay(TransactionContext context, TransactionalObserverRegistry registry) {
-        this.context = context;
         this.registry = registry;
+        this.buffer = new TransactionEventBuffer();
+        // the capture observer finds the buffer through the context's type-keyed resources
+        context.bindResource(TransactionEventBuffer.class, buffer);
     }
 
     @Override
@@ -56,7 +59,7 @@ final class TransactionEventReplay implements TransactionCallback {
         if (observers.isEmpty()) {
             return;
         }
-        for (Object payload : context.getEvents()) {
+        for (Object payload : buffer.events()) {
             for (ObserverMethod<?> observer : observers) {
                 if (matches(observer, payload)) {
                     notifySafely(observer, payload);
