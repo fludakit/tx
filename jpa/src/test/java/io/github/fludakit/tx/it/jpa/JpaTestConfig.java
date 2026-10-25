@@ -4,6 +4,7 @@ import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import io.github.fludakit.tx.jpa.JpaBootstrap;
 import io.github.fludakit.tx.jpa.JpaTransactionManager;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -11,10 +12,8 @@ import jakarta.enterprise.inject.Typed;
 import jakarta.inject.Named;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
-import jakarta.persistence.Persistence;
 
 import javax.sql.DataSource;
-import java.util.HashMap;
 import java.util.Map;
 
 @ApplicationScoped
@@ -31,9 +30,9 @@ public class JpaTestConfig {
         config.setMaximumPoolSize(10);
         this.rawPool = new HikariDataSource(config);
 
-        Map<String, Object> props = new HashMap<>();
-        props.put("hibernate.connection.datasource", rawPool);
-        this.emf = Persistence.createEntityManagerFactory("test", props);
+        this.emf = JpaBootstrap.create("test", rawPool, Map.of(
+                "hibernate.hbm2ddl.auto", "create",
+                "hibernate.dialect", "org.hibernate.dialect.H2Dialect"));
     }
 
     @Produces
