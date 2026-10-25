@@ -75,4 +75,19 @@ public interface TransactionalOperations<T> {
     default <R> R executeWrite(TransactionExecution<T, R> execution) throws Exception {
         return execute(TransactionDefinition.withDefaults(), execution);
     }
+
+    /**
+     * Execute a nested unit of work inside the active transaction, scoped by a savepoint: on
+     * success the savepoint is released and the changes become part of the surrounding
+     * transaction; on failure the work after the savepoint is undone and the exception
+     * propagates — <b>without</b> marking the surrounding transaction rollback-only, so the
+     * caller can catch and continue.
+     *
+     * <p>Outside an active transaction this behaves like {@link #execute(TransactionExecution)}
+     * (a full transaction is begun, there is nothing to nest into). Requires a
+     * {@link io.github.fludakit.tx.TransactionManager} with savepoint support.</p>
+     */
+    default <R> R executeNested(TransactionExecution<T, R> execution) throws Exception {
+        throw new UnsupportedOperationException("executeNested requires a DefaultTransactionalOperations");
+    }
 }

@@ -1,6 +1,8 @@
 package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionSavepointManager;
 
 import java.util.Objects;
 
@@ -11,6 +13,11 @@ import java.util.Objects;
  * <p>Carried by {@link TransactionContext} (via {@link TransactionContext#getStatus()}) and
  * mutated through the context — the context's non-transactional sentinel rejects all mutations,
  * including status ones.</p>
+ *
+ * <p>When the underlying {@link io.github.fludakit.tx.TransactionManager} supports savepoints,
+ * it attaches a {@link io.github.fludakit.tx.TransactionSavepointManager} and the status exposes
+ * {@link #createSavepoint()}/{@link #rollbackToSavepoint(TransactionSavepoint)}/
+ * {@link #releaseSavepoint(TransactionSavepoint)} — the handles a nested section works with.</p>
  *
  * <h2>Usage</h2>
  * <pre>{@code
@@ -35,26 +42,29 @@ public final class TransactionStatus {
 
     private final boolean readOnly;
     private final boolean newTransaction;
+    private final TransactionSavepointManager savepointManager;
     private State state = State.ACTIVE;
     private volatile boolean rollbackOnly;
 
-    private TransactionStatus(boolean readOnly, boolean newTransaction) {
+    private TransactionStatus(boolean readOnly, boolean newTransaction, TransactionSavepointManager savepointManager) {
         this.readOnly = readOnly;
         this.newTransaction = newTransaction;
+        this.savepointManager = savepointManager;
     }
 
     /**
      * The initial status for a transaction started with the given definition: a new transaction
-     * carrying the definition's read-only hint.
+     * carrying the definition's read-only hint, with savepoint support when the manager
+     * supplies it.
      */
-    public static TransactionStatus initial(TransactionDefinition definition) {
+    public static TransactionStatus initial(TransactionDefinition definition, TransactionSavepointManager savepointManager) {
         Objects.requireNonNull(definition, "definition must not be null");
-        return new TransactionStatus(definition.readOnly(), true);
+        return new TransactionStatus(definition.readOnly(), true, savepointManager);
     }
 
-    /** The default status: a new transaction without the read-only hint. */
+    /** The default status: a new transaction without the read-only hint and without savepoints. */
     public static TransactionStatus initial() {
-        return new TransactionStatus(false, true);
+        return new TransactionStatus(false, true, null);
     }
 
     public boolean isReadOnly() {
@@ -89,5 +99,48 @@ public final class TransactionStatus {
 
     public void setRollbackOnly() {
         this.rollbackOnly = true;
+    }
+
+    /** Whether the underlying manager attached savepoint support for this transaction. */
+    public boolean isSavepointSupported() {
+        return savepointManager != null;
+    }
+
+    /**
+     * Creates a savepoint at the transaction's current point.
+     *
+     * @throws UnsupportedOperationException if the manager attached no savepoint support
+     */
+    public TransactionSavepoint createSavepoint() {
+        requireSavepoints();
+        return savepointManager.createSavepoint();
+    }
+
+    /**
+     * Undoes every change made after the savepoint was created; the transaction stays active.
+     *
+     * @throws UnsupportedOperationException if the manager attached no savepoint support
+     */
+    public void rollbackToSavepoint(TransactionSavepoint savepoint) {
+        requireSavepoints();
+        savepointManager.rollbackToSavepoint(savepoint);
+    }
+
+    /**
+     * Releases the savepoint: its changes become permanent parts of the transaction.
+     *
+     * @throws UnsupportedOperationException if the manager attached no savepoint support
+     */
+    public void releaseSavepoint(TransactionSavepoint savepoint) {
+        requireSavepoints();
+        savepointManager.releaseSavepoint(savepoint);
+    }
+
+    private void requireSavepoints() {
+        if (savepointManager == null) {
+            throw new UnsupportedOperationException(
+                    "This transaction has no savepoint support (manager did not attach a "
+                            + "TransactionSavepointManager)");
+        }
     }
 }

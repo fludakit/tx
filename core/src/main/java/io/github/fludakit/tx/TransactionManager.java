@@ -72,13 +72,13 @@ public interface TransactionManager<T> {
     void rollback(TransactionContext context) throws TransactionException;
 
     /**
-     * The backing resource the given transaction is bound to: an aware {@code DataSource} view
-     * (JDBC) or the bound {@code EntityManager} (JPA). This is what
-     * {@link io.github.fludakit.tx.support.TransactionalOperations} hands to the execute callback.
+     * The backing resource of the transaction bound to the current thread: an aware
+     * {@code DataSource} view (JDBC) or the bound {@code EntityManager} (JPA). This is what
+     * {@link io.github.fludakit.tx.support.TransactionalOperations} hands to the execute
+     * callback. No context parameter — the ambient, thread-bound transaction is resolved
+     * internally (outside any transaction, the non-transactional view or {@code null}).
      *
-     * @param context the transaction context (the shared non-transactional sentinel for scopes
-     *                without an active transaction)
-     * @return the resource for the transaction, or the non-transactional view / {@code null}
+     * @return the backing resource of the current transaction
      */
-    T getResource(TransactionContext context);
+    T getResource();
 }

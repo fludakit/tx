@@ -66,6 +66,7 @@ public final class TransactionContext {
         this.status = status == null ? TransactionStatus.initial() : status;
     }
 
+
     private TransactionContext(boolean actualTransactionActive, boolean immutable) {
         this.actualTransactionActive = actualTransactionActive;
         this.immutable = immutable;

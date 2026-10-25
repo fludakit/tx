@@ -1,7 +1,10 @@
 package io.github.fludakit.tx.jdbc;
 
+import io.github.fludakit.tx.JdbcSavepoint;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionSavepointManager;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionCallback;
@@ -32,6 +35,10 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
     private final DataSource dataSource;
     private final TransactionAwareDataSourceProxy awareDataSource;
 
+    private static final String SAVEPOINT_PREFIX = "fluda_sp_";
+
+    private int savepointCounter;
+
     public DataSourceTransactionManager(DataSource dataSource) {
         this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
         this.awareDataSource = new TransactionAwareDataSourceProxy(this.dataSource);
@@ -42,8 +49,49 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
     }
 
     @Override
-    public DataSource getResource(TransactionContext context) {
+    public DataSource getResource() {
         return awareDataSource;
+    }
+
+    /**
+     * JDBC savepoints over this transaction's connection: the manager-level savepoint capability
+     * attached to the transaction status at begin.
+     */
+    private final class ConnectionSavepointManager implements TransactionSavepointManager {
+
+        private final Connection connection;
+
+        ConnectionSavepointManager(Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public TransactionSavepoint createSavepoint() {
+            try {
+                String name = SAVEPOINT_PREFIX + ++savepointCounter;
+                return new JdbcSavepoint(connection.setSavepoint(name), name);
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not create JDBC savepoint", ex);
+            }
+        }
+
+        @Override
+        public void rollbackToSavepoint(TransactionSavepoint savepoint) {
+            try {
+                connection.rollback(((JdbcSavepoint) savepoint).jdbcSavepoint());
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not roll back to JDBC savepoint", ex);
+            }
+        }
+
+        @Override
+        public void releaseSavepoint(TransactionSavepoint savepoint) {
+            try {
+                connection.releaseSavepoint(((JdbcSavepoint) savepoint).jdbcSavepoint());
+            } catch (SQLException ex) {
+                throw new TransactionSystemException("Could not release JDBC savepoint", ex);
+            }
+        }
     }
 
     @Override
@@ -70,7 +118,8 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
             }
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }
-        TransactionContext context = new TransactionContext(true, TransactionStatus.initial(definition));
+        TransactionContext context = new TransactionContext(true, TransactionStatus.initial(
+                definition, new ConnectionSavepointManager(connection)));
         context.bindResource(Connection.class, connection);
         context.registerCallback(new ConnectionCleanup(connection, definition.readOnly()));
         return context;

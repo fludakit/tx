@@ -3,10 +3,13 @@ package io.github.fludakit.tx.support;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionSavepointManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -27,7 +30,7 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void execute_required_createsNewTransaction() throws Exception {
-        String result = txOps.execute(res -> {
+        String result = txOps.execute((res, status) -> {
             assertSame(RESOURCE, res);
             return "done";
         });
@@ -42,7 +45,7 @@ class DefaultTransactionalOperationsTest {
     void execute_required_joinsExisting() throws Exception {
         TransactionContext outer = txManager.getTransaction(TransactionDefinition.DEFAULT);
         TransactionContextHolder.call(outer, () -> {
-            String result = txOps.execute(res -> {
+            String result = txOps.execute((res, status) -> {
                 assertSame(RESOURCE, res);
                 return "joined";
             });
@@ -61,7 +64,7 @@ class DefaultTransactionalOperationsTest {
                     jakarta.transaction.Transactional.TxType.REQUIRES_NEW,
                     new Class[0], new Class[0], false);
 
-            String result = txOps.execute(def, res -> "new");
+            String result = txOps.execute(def, (res, status) -> "new");
 
             assertEquals("new", result);
             assertEquals(2, txManager.beginCount);
@@ -73,7 +76,7 @@ class DefaultTransactionalOperationsTest {
     @Test
     void execute_runtimeException_triggersRollback() {
         assertThrows(IllegalStateException.class, () ->
-                txOps.execute(res -> {
+                txOps.execute((res, status) -> {
                     throw new IllegalStateException("boom");
                 })
         );
@@ -86,7 +89,7 @@ class DefaultTransactionalOperationsTest {
     @Test
     void execute_rollbackOnly_forcesRollback() throws Exception {
         TransactionContextHolder.call(txManager.getTransaction(TransactionDefinition.DEFAULT), () -> {
-            txOps.execute(res -> {
+            txOps.execute((res, status) -> {
                 TransactionContextHolder.get().setRollbackOnly();
                 return null;
             });
@@ -104,7 +107,7 @@ class DefaultTransactionalOperationsTest {
                 new Class[0], new Class[0], false);
 
         assertThrows(TransactionException.class, () ->
-                txOps.execute(def, res -> "should not reach")
+                txOps.execute(def, (res, status) -> "should not reach")
         );
 
         assertEquals(0, txManager.beginCount);
@@ -119,7 +122,7 @@ class DefaultTransactionalOperationsTest {
                     new Class[0], new Class[0], false);
 
             assertThrows(TransactionException.class, () ->
-                    txOps.execute(def, res -> "should not reach")
+                    txOps.execute(def, (res, status) -> "should not reach")
             );
             return null;
         });
@@ -128,7 +131,7 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void executeRead_usesReadOnlyDefinition() throws Exception {
-        txOps.executeRead(res -> {
+        txOps.executeRead((res, status) -> {
             assertSame(RESOURCE, res);
             return null;
         });
@@ -140,7 +143,7 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void executeWrite_usesDefaultDefinition() throws Exception {
-        txOps.executeWrite(res -> {
+        txOps.executeWrite((res, status) -> {
             assertSame(RESOURCE, res);
             return null;
         });
@@ -157,17 +160,71 @@ class DefaultTransactionalOperationsTest {
         }
     }
 
-    private static class StubTransactionManager implements TransactionManager<String> {
+    @Test
+    void executeNested_success_releasesAndOuterCommits() throws Exception {
+        txOps.execute((res, status) -> {
+            String nested = txOps.executeNested((inner, nestedStatus) -> {
+                assertSame(RESOURCE, inner);
+                assertTrue(nestedStatus.isSavepointSupported());
+                return "inner";
+            });
+            assertEquals("inner", nested);
+            return null;
+        });
+
+        assertEquals(1, txManager.beginCount);
+        assertEquals(1, txManager.commitCount);
+        assertEquals(0, txManager.rollbackCount);
+        assertEquals(1, txManager.savepointCount);
+        assertEquals(1, txManager.releaseCount);
+        assertEquals(0, txManager.rollbackToCount);
+    }
+
+    @Test
+    void executeNested_failure_scopesRollbackToSavepoint_outerContinues() throws Exception {
+        String result = txOps.execute((res, status) -> {
+            assertThrows(IllegalStateException.class, () ->
+                    txOps.executeNested((inner, nestedStatus) -> {
+                        throw new IllegalStateException("nested failure");
+                    }));
+            // the surrounding transaction continues after the scoped rollback
+            return "outer-survived";
+        });
+
+        assertEquals("outer-survived", result);
+        assertEquals(1, txManager.beginCount);
+        assertEquals(1, txManager.commitCount);
+        assertEquals(0, txManager.rollbackCount);
+        assertEquals(1, txManager.savepointCount);
+        assertEquals(1, txManager.rollbackToCount);
+        assertEquals(0, txManager.releaseCount);
+    }
+
+    @Test
+    void executeNested_withoutActiveTransaction_beginsFullTransaction() throws Exception {
+        String result = txOps.executeNested((res, status) -> "standalone");
+
+        assertEquals("standalone", result);
+        assertEquals(1, txManager.beginCount);
+        assertEquals(1, txManager.commitCount);
+        assertEquals(0, txManager.savepointCount);
+    }
+
+    private class StubTransactionManager implements TransactionManager<String>, TransactionSavepointManager {
         int beginCount;
         int commitCount;
         int rollbackCount;
+        int savepointCount;
+        int releaseCount;
+        int rollbackToCount;
         Boolean lastReadOnlyFlag;
 
         @Override
         public TransactionContext getTransaction(TransactionDefinition definition) {
             beginCount++;
             lastReadOnlyFlag = definition.readOnly();
-            TransactionContext context = new TransactionContext(true);
+            TransactionContext context = new TransactionContext(true,
+                    TransactionStatus.initial(definition, this));
             context.registerCallback(new TransactionCallback() {});
             return context;
         }
@@ -183,8 +240,24 @@ class DefaultTransactionalOperationsTest {
         }
 
         @Override
-        public String getResource(TransactionContext context) {
+        public String getResource() {
             return RESOURCE;
+        }
+
+        @Override
+        public TransactionSavepoint createSavepoint() {
+            savepointCount++;
+            return () -> "sp" + savepointCount;
+        }
+
+        @Override
+        public void rollbackToSavepoint(TransactionSavepoint savepoint) {
+            rollbackToCount++;
+        }
+
+        @Override
+        public void releaseSavepoint(TransactionSavepoint savepoint) {
+            releaseCount++;
         }
     }
 }

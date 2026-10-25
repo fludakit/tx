@@ -18,7 +18,7 @@ import jakarta.enterprise.inject.Produces;
  * @Inject TransactionalOperations<EntityManager> jpaOps;   // JpaTransactionManager
  *
  * public void doWork() {
- *     txOps.execute(ds -> {
+ *     txOps.execute((ds, status) -> {
  *         try (Connection c = ds.getConnection()) {
  *             // joins the active transaction
  *         }
