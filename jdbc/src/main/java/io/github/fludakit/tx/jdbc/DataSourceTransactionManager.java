@@ -38,16 +38,28 @@ public class DataSourceTransactionManager implements PlatformTransactionManager 
 
     @Override
     public TransactionContext getTransaction(TransactionDefinition definition) {
+        Connection connection;
         try {
-            Connection connection = dataSource.getConnection();
-            connection.setAutoCommit(false);
-            TransactionContext context = new TransactionContext(true);
-            context.getResources().put(dataSource, connection);
-            context.getCallbacks().add(new ConnectionCleanup(connection));
-            return context;
+            connection = dataSource.getConnection();
         } catch (SQLException ex) {
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }
+        try {
+            connection.setAutoCommit(false);
+        } catch (SQLException ex) {
+            // release the pooled connection before translating — nothing is bound to clean it up yet
+            try {
+                connection.setAutoCommit(true);
+                connection.close();
+            } catch (SQLException suppressed) {
+                ex.addSuppressed(suppressed);
+            }
+            throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
+        }
+        TransactionContext context = new TransactionContext(true);
+        context.getResources().put(dataSource, connection);
+        context.getCallbacks().add(new ConnectionCleanup(connection));
+        return context;
     }
 
     @Override

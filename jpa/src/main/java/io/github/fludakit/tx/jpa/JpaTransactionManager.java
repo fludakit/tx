@@ -67,10 +67,14 @@ public class JpaTransactionManager implements PlatformTransactionManager {
 
     @Override
     public TransactionContext getTransaction(TransactionDefinition definition) throws TransactionException {
+        EntityManager em;
         try {
-            EntityManager em = entityManagerFactory.createEntityManager();
-            EntityTransaction tx = em.getTransaction();
-            tx.begin();
+            em = entityManagerFactory.createEntityManager();
+        } catch (PersistenceException ex) {
+            throw new TransactionSystemException("Could not open JPA EntityManager for transaction", ex);
+        }
+        try {
+            em.getTransaction().begin();
 
             Connection connection = connectionExtractor.extract(em);
 
@@ -79,8 +83,11 @@ public class JpaTransactionManager implements PlatformTransactionManager {
             context.getResources().put(dataSource, connection);
             context.getCallbacks().add(new EntityManagerCleanup(em));
             return context;
-        } catch (PersistenceException ex) {
-            throw new TransactionSystemException("Could not open JPA EntityManager for transaction", ex);
+        } catch (RuntimeException ex) {
+            // begin() may have started a transaction and the extractor may throw before anything
+            // is bound to clean up — roll back and close so nothing leaks, then translate
+            closeAfterFailedBegin(em, ex);
+            throw new TransactionSystemException("Could not begin JPA transaction", ex);
         }
     }
 
@@ -113,6 +120,27 @@ public class JpaTransactionManager implements PlatformTransactionManager {
             throw new IllegalStateException("No EntityManager bound for this EntityManagerFactory");
         }
         return em;
+    }
+
+    /**
+     * Rolls back and closes an EntityManager whose transaction failed to start, preserving any
+     * cleanup failure as a suppressed exception on the original cause.
+     */
+    private static void closeAfterFailedBegin(EntityManager em, RuntimeException cause) {
+        try {
+            if (em.isOpen() && em.getTransaction().isActive()) {
+                em.getTransaction().rollback();
+            }
+        } catch (RuntimeException rollbackEx) {
+            cause.addSuppressed(rollbackEx);
+        }
+        try {
+            if (em.isOpen()) {
+                em.close();
+            }
+        } catch (RuntimeException closeEx) {
+            cause.addSuppressed(closeEx);
+        }
     }
 
     private static final class EntityManagerCleanup implements TransactionCallback {
