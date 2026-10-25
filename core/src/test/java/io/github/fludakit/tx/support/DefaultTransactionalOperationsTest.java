@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -151,6 +152,79 @@ class DefaultTransactionalOperationsTest {
             return null;
         });
         cleanup(outer);
+    }
+
+    @Test
+    void execute_supports_joinsExistingWithoutBeginning() throws Exception {
+        TransactionContext outer = txManager.getTransaction(TransactionDefinition.DEFAULT);
+        TransactionContextHolder.call(outer, () -> {
+            TransactionDefinition def = new TransactionDefinition(
+                    jakarta.transaction.Transactional.TxType.SUPPORTS,
+                    new Class[0], new Class[0], false);
+
+            String result = txOps.execute(def, (res, status) -> {
+                assertSame(RESOURCE, res);
+                assertSame(outer.getStatus(), status, "SUPPORTS must run in the existing transaction's status");
+                return "joined";
+            });
+
+            assertEquals("joined", result);
+            assertEquals(1, txManager.beginCount, "no new transaction may be begun");
+            return null;
+        });
+        cleanup(outer);
+    }
+
+    @Test
+    void execute_supports_withoutActiveTransaction_runsNonTransactionally() throws Exception {
+        TransactionDefinition def = new TransactionDefinition(
+                jakarta.transaction.Transactional.TxType.SUPPORTS,
+                new Class[0], new Class[0], false);
+
+        String result = txOps.execute(def, (res, status) -> {
+            assertSame(TransactionContext.NON_TRANSACTIONAL.getStatus(), status);
+            return "non-tx";
+        });
+
+        assertEquals("non-tx", result);
+        assertEquals(0, txManager.beginCount);
+    }
+
+    @Test
+    void execute_notSupported_suspendsExisting() throws Exception {
+        TransactionContext outer = txManager.getTransaction(TransactionDefinition.DEFAULT);
+        TransactionContextHolder.call(outer, () -> {
+            TransactionDefinition def = new TransactionDefinition(
+                    jakarta.transaction.Transactional.TxType.NOT_SUPPORTED,
+                    new Class[0], new Class[0], false);
+
+            String result = txOps.execute(def, (res, status) -> {
+                assertNotSame(outer.getStatus(), status, "the outer transaction must be suspended");
+                assertSame(TransactionContext.NON_TRANSACTIONAL.getStatus(), status);
+                return "suspended";
+            });
+
+            assertEquals("suspended", result);
+            assertEquals(1, txManager.beginCount, "no new transaction may be begun");
+            assertSame(outer, TransactionContextHolder.get(), "the outer transaction must be restored");
+            return null;
+        });
+        cleanup(outer);
+    }
+
+    @Test
+    void execute_notSupported_withoutActiveTransaction_runsNonTransactionally() throws Exception {
+        TransactionDefinition def = new TransactionDefinition(
+                jakarta.transaction.Transactional.TxType.NOT_SUPPORTED,
+                new Class[0], new Class[0], false);
+
+        String result = txOps.execute(def, (res, status) -> {
+            assertSame(TransactionContext.NON_TRANSACTIONAL.getStatus(), status);
+            return "non-tx";
+        });
+
+        assertEquals("non-tx", result);
+        assertEquals(0, txManager.beginCount);
     }
 
     @Test
