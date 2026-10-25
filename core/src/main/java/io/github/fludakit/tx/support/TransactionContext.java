@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.support;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -137,10 +138,16 @@ public final class TransactionContext {
 
     /**
      * Shared context representing "no active transaction" (used by NOT_SUPPORTED/NEVER/SUPPORTS).
+     *
+     * <p>Immutable and shared by every execution on every thread: any mutation — binding a
+     * resource, registering a callback, marking rollback-only — would leak into all subsequent
+     * non-transactional scopes, so each mutator throws {@link UnsupportedOperationException}
+     * instead of silently poisoning the sentinel.</p>
      */
-    public static final TransactionContext NON_TRANSACTIONAL = new TransactionContext(false);
+    public static final TransactionContext NON_TRANSACTIONAL = new TransactionContext(false, true);
 
     private final boolean actualTransactionActive;
+    private final boolean immutable;
     private final Map<Object, Object> resources = new IdentityHashMap<>();
     private final List<TransactionCallback> callbacks = new ArrayList<>();
     private final List<Object> events = new ArrayList<>();
@@ -148,7 +155,12 @@ public final class TransactionContext {
     private volatile boolean completed;
 
     public TransactionContext(boolean actualTransactionActive) {
+        this(actualTransactionActive, false);
+    }
+
+    private TransactionContext(boolean actualTransactionActive, boolean immutable) {
         this.actualTransactionActive = actualTransactionActive;
+        this.immutable = immutable;
     }
 
     public boolean isActualTransactionActive() {
@@ -181,10 +193,12 @@ public final class TransactionContext {
     }
 
     public void bindResource(Object key, Object value) {
+        requireMutable("bindResource");
         resources.put(key, value);
     }
 
     public Object unbindResource(Object key) {
+        requireMutable("unbindResource");
         return resources.remove(key);
     }
 
@@ -229,15 +243,18 @@ public final class TransactionContext {
     }
 
     public void registerCallback(TransactionCallback callback) {
+        requireMutable("registerCallback");
         callbacks.add(callback);
     }
 
+    /** Unmodifiable view of the bound resources; use {@link #bindResource} to add. */
     public Map<Object, Object> getResources() {
-        return resources;
+        return Collections.unmodifiableMap(resources);
     }
 
+    /** Unmodifiable view of the registered callbacks; use {@link #registerCallback} to add. */
     public List<TransactionCallback> getCallbacks() {
-        return callbacks;
+        return Collections.unmodifiableList(callbacks);
     }
 
     public void triggerBeforeCommit(boolean readOnly) {
@@ -265,11 +282,13 @@ public final class TransactionContext {
     }
 
     public void addEvent(Object event) {
+        requireMutable("addEvent");
         events.add(event);
     }
 
+    /** Unmodifiable view of the deferred event payloads; use {@link #addEvent} to add. */
     public List<Object> getEvents() {
-        return events;
+        return Collections.unmodifiableList(events);
     }
 
     public boolean isRollbackOnly() {
@@ -277,6 +296,7 @@ public final class TransactionContext {
     }
 
     public void setRollbackOnly() {
+        requireMutable("setRollbackOnly");
         this.rollbackOnly = true;
     }
 
@@ -285,6 +305,15 @@ public final class TransactionContext {
     }
 
     public void markCompleted() {
+        requireMutable("markCompleted");
         this.completed = true;
+    }
+
+    private void requireMutable(String operation) {
+        if (immutable) {
+            throw new UnsupportedOperationException(
+                    operation + " is not allowed on TransactionContext.NON_TRANSACTIONAL — the "
+                            + "sentinel is shared by every non-transactional execution");
+        }
     }
 }

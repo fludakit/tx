@@ -162,7 +162,7 @@ class DefaultTransactionalOperationsTest {
         public TransactionContext getTransaction(TransactionDefinition definition) {
             beginCount++;
             TransactionContext context = new TransactionContext(true);
-            context.getCallbacks().add(new TransactionCallback() {});
+            context.registerCallback(new TransactionCallback() {});
             return context;
         }
 
