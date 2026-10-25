@@ -76,6 +76,23 @@ class EntityManagerInjectionTest {
         }
     }
 
+    @Test
+    void injectedEntityManager_survivesSequentialTransactions() throws Exception {
+        // The proxy used to cache the EntityManager resolved in the first transaction; the
+        // @ApplicationScoped service keeps one proxy across transactions, so the second call
+        // operated on the EntityManager closed by the first transaction's afterCompletion.
+        service.persistWithInjectedEm(10L, "First");
+        service.persistWithInjectedEm(11L, "Second");
+
+        try (Connection conn = dataSource.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "SELECT COUNT(*) FROM test_items WHERE id IN (10, 11)")) {
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
+        }
+    }
+
     @ApplicationScoped
     public static class InjectedEntityManagerService {
 
