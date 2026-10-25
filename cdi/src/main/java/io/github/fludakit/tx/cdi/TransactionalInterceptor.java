@@ -1,5 +1,6 @@
 package io.github.fludakit.tx.cdi;
 
+import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.support.TransactionContext;
@@ -15,7 +16,6 @@ import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
 import jakarta.transaction.Transactional;
-import jakarta.transaction.TransactionalException;
 
 /**
  * CDI interceptor honoring {@code jakarta.transaction.Transactional}: resolves the annotation,
@@ -58,13 +58,13 @@ public class TransactionalInterceptor {
         return switch (type) {
             case MANDATORY -> {
                 if (!active) {
-                    throw new TransactionalException("No active transaction (MANDATORY)", null);
+                    throw new TransactionException("No active transaction (MANDATORY)");
                 }
                 yield context.proceed();
             }
             case NEVER -> {
                 if (active) {
-                    throw new TransactionalException("Active transaction not allowed (NEVER)", null);
+                    throw new TransactionException("Active transaction not allowed (NEVER)");
                 }
                 yield context.proceed();
             }
