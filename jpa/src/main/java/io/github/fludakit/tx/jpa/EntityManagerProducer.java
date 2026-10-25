@@ -10,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 
 import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
@@ -69,9 +70,10 @@ import java.lang.reflect.Proxy;
  * to the same underlying EntityManager instance.</p>
  *
  * <h2>Lazy Resolution</h2>
- * <p>The producer returns a dynamic proxy that defers EntityManager lookup until first use.
- * This allows injection at bean creation time (before any transaction is active) while still
- * providing the transaction-bound EntityManager when methods are invoked within a transaction.</p>
+ * <p>The producer returns a dynamic proxy that defers EntityManager lookup until a method is
+ * invoked. This allows injection at bean creation time (before any transaction is active); each
+ * invocation then resolves the transaction-bound EntityManager, so the proxy stays correct across
+ * sequential transactions.</p>
  *
  * <h2>CDI Proxy Handling</h2>
  * <p>The injected {@code EntityManagerFactory} may be a CDI client proxy (for {@code @ApplicationScoped}
@@ -90,12 +92,12 @@ public class EntityManagerProducer {
     /**
      * Produces a lazy-resolving {@link EntityManager} proxy.
      *
-     * <p>The returned proxy defers EntityManager lookup until first method invocation.
+     * <p>The returned proxy defers EntityManager lookup until each method invocation.
      * When a method is called, it retrieves the EntityManager from the active
      * {@link TransactionContext} via {@link JpaHelper#currentEntityManager(EntityManagerFactory)}.
      * If no transaction is active, throws {@link IllegalStateException}.</p>
      *
-     * @return a proxy that resolves to the transaction-scoped EntityManager on first use
+     * @return a proxy that resolves to the transaction-scoped EntityManager on each use
      * @throws IllegalStateException if no transaction is active when a method is invoked
      */
     @Produces
@@ -108,12 +110,18 @@ public class EntityManagerProducer {
     }
 
     /**
-     * InvocationHandler that lazily resolves the EntityManager on first method call.
+     * InvocationHandler that resolves the transaction-bound EntityManager on every method call.
+     *
+     * <p>Resolution cannot be cached: the produced bean is {@code @Dependent}, so an
+     * {@code @ApplicationScoped} client keeps this handler across transactions, and the
+     * EntityManager bound to the first transaction is closed by that transaction's
+     * {@code afterCompletion} — a cached instance would hand the second transaction a closed
+     * EntityManager. {@link JpaHelper#currentEntityManager(EntityManagerFactory)} is a cheap
+     * context lookup, so resolving per invocation costs nothing but a map read.</p>
      */
     private static class LazyEntityManagerHandler implements InvocationHandler {
 
         private final EntityManagerFactory emf;
-        private EntityManager resolved;
 
         LazyEntityManagerHandler(EntityManagerFactory emf) {
             this.emf = emf;
@@ -121,10 +129,14 @@ public class EntityManagerProducer {
 
         @Override
         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-            if (resolved == null) {
-                resolved = JpaHelper.currentEntityManager(emf);
+            EntityManager em = JpaHelper.currentEntityManager(emf);
+            try {
+                return method.invoke(em, args);
+            } catch (InvocationTargetException e) {
+                // surface the target's exception itself; for a checked undeclared cause the proxy
+                // machinery would otherwise wrap it in UndeclaredThrowableException
+                throw e.getCause();
             }
-            return method.invoke(resolved, args);
         }
     }
 }
