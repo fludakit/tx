@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -106,11 +107,34 @@ class DefaultTransactionalOperationsTest {
                 jakarta.transaction.Transactional.TxType.MANDATORY,
                 new Class[0], new Class[0], false);
 
-        assertThrows(TransactionException.class, () ->
+        // TransactionException extends the spec's TransactionalException, so the programmatic
+        // path satisfies the same contract the @Transactional interceptor must follow
+        Throwable thrown = assertThrows(TransactionException.class, () ->
                 txOps.execute(def, (res, status) -> "should not reach")
         );
+        assertInstanceOf(jakarta.transaction.TransactionalException.class, thrown);
 
         assertEquals(0, txManager.beginCount);
+    }
+
+    @Test
+    void execute_error_propagatesRawAndTriggersRollback() {
+        // Errors are never wrapped — the callback's Error surfaces itself
+        assertThrows(SampleError.class, () ->
+                txOps.execute((res, status) -> {
+                    throw new SampleError("fatal");
+                })
+        );
+
+        assertEquals(1, txManager.beginCount);
+        assertEquals(0, txManager.commitCount);
+        assertEquals(1, txManager.rollbackCount);
+    }
+
+    private static final class SampleError extends Error {
+        SampleError(String message) {
+            super(message);
+        }
     }
 
     @Test

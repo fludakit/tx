@@ -165,6 +165,7 @@ public class DefaultTransactionalOperations<T> implements TransactionalOperation
         if (throwable instanceof Exception exception) {
             throw exception;
         }
-        throw new RuntimeException(throwable);
+        // the only non-Exception Throwables are Errors — propagate them raw, never wrapped
+        throw (Error) throwable;
     }
 }
