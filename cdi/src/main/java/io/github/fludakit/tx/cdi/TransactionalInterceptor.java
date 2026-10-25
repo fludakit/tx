@@ -98,12 +98,12 @@ public class TransactionalInterceptor {
         if (rollback) {
             rollbackTransaction(context);
         } else {
-            commitTransaction(context);
+            commitTransaction(context, definition);
         }
     }
 
-    private void commitTransaction(TransactionContext context) {
-        context.triggerBeforeCommit(false);
+    private void commitTransaction(TransactionContext context, TransactionDefinition definition) {
+        context.triggerBeforeCommit(definition.readOnly());
         context.triggerBeforeCompletion();
         try {
             transactionManager.commit(context);

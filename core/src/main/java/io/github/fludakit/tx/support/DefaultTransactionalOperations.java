@@ -87,28 +87,28 @@ public class DefaultTransactionalOperations implements TransactionalOperations {
         return TransactionContextHolder.call(context, () -> {
             try {
                 T result = callback.call(context);
-                complete(context, null);
+                complete(context, definition, null);
                 return result;
             } catch (Throwable failure) {
-                complete(context, failure);
+                complete(context, definition, failure);
                 throw rethrow(failure);
             }
         });
     }
 
-    private void complete(TransactionContext context, Throwable failure) {
+    private void complete(TransactionContext context, TransactionDefinition definition, Throwable failure) {
         if (context.isCompleted()) {
             return;
         }
         if (context.isRollbackOnly() || failure != null) {
             rollbackTransaction(context);
         } else {
-            commitTransaction(context);
+            commitTransaction(context, definition);
         }
     }
 
-    private void commitTransaction(TransactionContext context) {
-        context.triggerBeforeCommit(false);
+    private void commitTransaction(TransactionContext context, TransactionDefinition definition) {
+        context.triggerBeforeCommit(definition.readOnly());
         context.triggerBeforeCompletion();
         try {
             transactionManager.commit(context);
