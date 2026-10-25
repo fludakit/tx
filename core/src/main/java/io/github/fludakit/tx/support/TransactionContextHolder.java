@@ -16,7 +16,7 @@ import java.util.concurrent.Callable;
  *
  * <h2>Usage Pattern</h2>
  * <pre>{@code
- * // In PlatformTransactionManager.getTransaction()
+ * // In TransactionManager.getTransaction()
  * TransactionContext context = new TransactionContext(true);
  * context.bindResource(Connection.class, connection);
  * 
@@ -45,7 +45,7 @@ import java.util.concurrent.Callable;
  * concurrency and virtual threads.</p>
  *
  * @see TransactionContext
- * @see io.github.fludakit.tx.PlatformTransactionManager
+ * @see io.github.fludakit.tx.TransactionManager
  */
 public final class TransactionContextHolder {
 

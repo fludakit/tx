@@ -10,7 +10,7 @@ import java.util.Map;
  * The per-transaction context/status — the single object that captures one resource-local
  * transaction.
  *
- * <p>Created and populated by a {@link io.github.fludakit.tx.PlatformTransactionManager}, bound
+ * <p>Created and populated by a {@link io.github.fludakit.tx.TransactionManager}, bound
  * to the thread/scope by {@link TransactionContextHolder}. It holds the bound
  * resources, the registered callbacks, the deferred event payloads, and the rollback-only
  * and completed flags.</p>
@@ -28,7 +28,7 @@ import java.util.Map;
  *
  * <h2>Usage</h2>
  * <pre>{@code
- * // Store resources (in PlatformTransactionManager.getTransaction())
+ * // Store resources (in TransactionManager.getTransaction())
  * TransactionContext ctx = new TransactionContext(true);
  * ctx.bindResource(Connection.class, connection);
  * ctx.registerCallback(cleanupCallback);

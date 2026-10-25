@@ -1,30 +1,26 @@
 package io.github.fludakit.tx.support;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
+import io.github.fludakit.tx.TransactionManager;
 
 import jakarta.transaction.Transactional;
 
 import java.util.Objects;
 
 /**
- * Default {@link TransactionalOperations} implementation backed by a {@link PlatformTransactionManager}.
- *
- * <p>This class provides programmatic transaction management, mirroring the propagation logic from
- * the CDI {@code TransactionalInterceptor} but without requiring CDI. It resolves
- * {@link Transactional.TxType} propagation rules and drives the transaction lifecycle
- * (begin, bind, execute, commit/rollback).</p>
+ * Default {@link TransactionalOperations} implementation backed by a {@link TransactionManager},
+ * handing the transaction's backing resource to every execute callback.
  *
  * <h2>Usage Example</h2>
  * <pre>{@code
- * PlatformTransactionManager txManager = new DataSourceTransactionManager(dataSource);
- * TransactionalOperations txOps = new DefaultTransactionalOperations(txManager);
+ * TransactionManager<DataSource> txManager = new DataSourceTransactionManager(dataSource);
+ * TransactionalOperations<DataSource> txOps = new DefaultTransactionalOperations<>(txManager);
  *
- * Long userId = txOps.execute(ctx -> {
- *     Connection conn = ctx.getResource(Connection.class);
- *     // ... JDBC operations ...
- *     return userId;
+ * List<User> users = txOps.execute(ds -> {
+ *     try (Connection conn = ds.getConnection()) {   // joins the active transaction
+ *         // ... JDBC operations ...
+ *     }
  * });
  * }</pre>
  *
@@ -39,54 +35,58 @@ import java.util.Objects;
  *   <li>{@code NEVER}: Require no existing transaction</li>
  * </ul>
  *
+ * @param <T> the backing resource type handed to the execute callback
  * @see TransactionalOperations
- * @see PlatformTransactionManager
+ * @see TransactionManager
  */
-public class DefaultTransactionalOperations implements TransactionalOperations {
+public class DefaultTransactionalOperations<T> implements TransactionalOperations<T> {
 
-    private final PlatformTransactionManager transactionManager;
+    private final TransactionManager<T> transactionManager;
 
-    public DefaultTransactionalOperations(PlatformTransactionManager transactionManager) {
+    public DefaultTransactionalOperations(TransactionManager<T> transactionManager) {
         this.transactionManager = Objects.requireNonNull(transactionManager, "transactionManager must not be null");
     }
 
-    public PlatformTransactionManager getTransactionManager() {
+    public TransactionManager<T> getTransactionManager() {
         return transactionManager;
     }
 
     @Override
-    public <T> T execute(TransactionDefinition definition, TransactionExecutor<T> callback) throws Exception {
+    public <R> R execute(TransactionDefinition definition, TransactionExecution<T, R> execution) throws Exception {
         Transactional.TxType propagation = definition.propagation();
         TransactionContext ctx = TransactionContextHolder.get();
         boolean active = ctx != null && ctx.isActualTransactionActive();
 
         return switch (propagation) {
-            case REQUIRED -> active ? callback.call(ctx) : executeNew(definition, callback);
-            case REQUIRES_NEW -> executeNew(definition, callback);
-            case SUPPORTS -> active ? callback.call(ctx) : callback.call(TransactionContext.NON_TRANSACTIONAL);
+            case REQUIRED -> active ? execution.call(transactionManager.getResource(ctx)) : executeNew(definition, execution);
+            case REQUIRES_NEW -> executeNew(definition, execution);
+            case SUPPORTS -> active
+                    ? execution.call(transactionManager.getResource(ctx))
+                    : execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
             case NOT_SUPPORTED -> active
-                    ? TransactionContextHolder.call(TransactionContext.NON_TRANSACTIONAL, () -> callback.call(TransactionContext.NON_TRANSACTIONAL))
-                    : callback.call(TransactionContext.NON_TRANSACTIONAL);
+                    ? TransactionContextHolder.call(TransactionContext.NON_TRANSACTIONAL,
+                            () -> execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL)))
+                    : execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
             case MANDATORY -> {
                 if (!active) {
                     throw new TransactionException("No active transaction (MANDATORY)");
                 }
-                yield callback.call(ctx);
+                yield execution.call(transactionManager.getResource(ctx));
             }
             case NEVER -> {
                 if (active) {
                     throw new TransactionException("Active transaction not allowed (NEVER)");
                 }
-                yield callback.call(TransactionContext.NON_TRANSACTIONAL);
+                yield execution.call(transactionManager.getResource(TransactionContext.NON_TRANSACTIONAL));
             }
         };
     }
 
-    private <T> T executeNew(TransactionDefinition definition, TransactionExecutor<T> callback) throws Exception {
+    private <R> R executeNew(TransactionDefinition definition, TransactionExecution<T, R> execution) throws Exception {
         TransactionContext context = transactionManager.getTransaction(definition);
         return TransactionContextHolder.call(context, () -> {
             try {
-                T result = callback.call(context);
+                R result = execution.call(transactionManager.getResource(context));
                 complete(context, definition, null);
                 return result;
             } catch (Throwable failure) {

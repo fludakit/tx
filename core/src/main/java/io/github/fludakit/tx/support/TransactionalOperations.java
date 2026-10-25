@@ -3,107 +3,76 @@ package io.github.fludakit.tx.support;
 import io.github.fludakit.tx.TransactionDefinition;
 
 /**
- * Operations for executing code within transaction boundaries.
+ * Operations for executing code within transaction boundaries, parameterized by the backing
+ * resource bound to the transaction.
  *
  * <p>This interface provides a programmatic way to manage transactions, complementing the
- * declarative {@code @Transactional} annotation. It wraps a unit of work with transaction
- * lifecycle management (begin, commit, rollback).</p>
+ * declarative {@code @Transactional} annotation. The execute callback receives the transaction's
+ * backing resource directly — no context lookup at the usage site:</p>
  *
- * <h2>Usage Example</h2>
  * <pre>{@code
- * @Inject TransactionalOperations txOps;
- * 
+ * &#64;Inject TransactionalOperations&lt;EntityManager&gt; jpaOps;
+ *
  * public void createUser(User user) {
- *     txOps.execute(ctx -> {
- *         EntityManager em = JpaHelper.currentEntityManager();
+ *     jpaOps.execute(em -> {
  *         em.persist(user);
- *         
- *         // Can also use JDBC in the same transaction
- *         Connection conn = ctx.getResource(Connection.class);
- *         // ... JDBC operations ...
- *         
  *         return user.getId();
  *     });
  * }
  * }</pre>
  *
+ * <p>The type parameter follows the {@link io.github.fludakit.tx.TransactionManager} the
+ * operations are built from: {@code DataSource} for the JDBC manager (an aware view whose
+ * {@code getConnection()} joins the active transaction), {@code EntityManager} for the JPA
+ * manager.</p>
+ *
  * <h2>Transaction Propagation</h2>
- * <p>The {@code execute} methods respect the {@link TransactionDefinition} propagation settings:</p>
- * <ul>
- *   <li>{@code REQUIRED} (default): Join existing transaction or create new one</li>
- *   <li>{@code REQUIRES_NEW}: Always create a new transaction, suspending any existing one</li>
- *   <li>{@code SUPPORTS}: Execute within existing transaction, or non-transactionally if none exists</li>
- *   <li>Other propagation types are also supported</li>
- * </ul>
+ * <p>The {@code execute} methods respect the {@link TransactionDefinition} propagation settings:
+ * {@code REQUIRED} (default) joins or creates, {@code REQUIRES_NEW} suspends, {@code SUPPORTS},
+ * {@code NOT_SUPPORTED}, {@code MANDATORY}, and {@code NEVER} behave per their semantics.</p>
  *
- * <h2>Exception Handling</h2>
- * <p>If the callback throws a {@link RuntimeException} or {@link Error}, the transaction is
- * automatically rolled back. Checked exceptions must be handled within the callback or wrapped
- * in a RuntimeException.</p>
- *
- * @see TransactionExecutor
- * @see TransactionContext
+ * @param <T> the backing resource type handed to the execute callback
+ * @see TransactionExecution
+ * @see io.github.fludakit.tx.TransactionManager
  */
-public interface TransactionalOperations {
+public interface TransactionalOperations<T> {
 
     /**
-     * Execute the given callback within a transaction boundary.
+     * Execute the given unit of work within a transaction boundary, handing it the transaction's
+     * backing resource.
      *
-     * <p>The transaction lifecycle is managed automatically:</p>
-     * <ol>
-     *   <li>Begin transaction (according to propagation rules)</li>
-     *   <li>Execute callback</li>
-     *   <li>Commit if successful, rollback if exception thrown</li>
-     * </ol>
+     * <p>The transaction lifecycle is managed automatically: begin (per propagation), execute,
+     * commit on success, rollback on exception.</p>
      *
-     * @param <T> the return type
-     * @param definition transaction definition (propagation, isolation, timeout, etc.)
-     * @param callback the code to execute within the transaction
-     * @return the result of the callback
-     * @throws Exception if the callback throws an exception
+     * @param <R>        the return type
+     * @param definition transaction definition (propagation, rollback rules, readOnly)
+     * @param execution  the unit of work, receiving the backing resource
+     * @return the result of the unit of work
+     * @throws Exception if the unit of work throws an exception
      */
-    <T> T execute(TransactionDefinition definition, TransactionExecutor<T> callback) throws Exception;
+    <R> R execute(TransactionDefinition definition, TransactionExecution<T, R> execution) throws Exception;
 
     /**
-     * Execute the given callback within a transaction using default settings.
+     * Execute the given unit of work within a transaction using default settings.
      *
-     * <p>Equivalent to calling {@code execute(TransactionDefinition.withDefaults(), callback)}.</p>
-     *
-     * @param <T> the return type
-     * @param callback the code to execute within the transaction
-     * @return the result of the callback
-     * @throws Exception if the callback throws an exception
+     * <p>Equivalent to calling {@code execute(TransactionDefinition.withDefaults(), execution)}.</p>
      */
-    default <T> T execute(TransactionExecutor<T> callback) throws Exception {
-        return execute(TransactionDefinition.withDefaults(), callback);
+    default <R> R execute(TransactionExecution<T, R> execution) throws Exception {
+        return execute(TransactionDefinition.withDefaults(), execution);
     }
 
     /**
-     * Execute a read-only operation within a transaction.
-     *
-     * <p>This is a convenience method that sets the transaction to read-only mode, which may
-     * enable optimizations in some transaction managers.</p>
-     *
-     * @param <T> the return type
-     * @param callback the code to execute within the transaction
-     * @return the result of the callback
-     * @throws Exception if the callback throws an exception
+     * Execute a read-only operation within a transaction — the definition carries the read-only
+     * hint, which transaction managers may apply.
      */
-    default <T> T executeRead(TransactionExecutor<T> callback) throws Exception {
-        return execute(TransactionDefinition.readOnlyDefinition(), callback);
+    default <R> R executeRead(TransactionExecution<T, R> execution) throws Exception {
+        return execute(TransactionDefinition.readOnlyDefinition(), execution);
     }
 
     /**
-     * Execute a write operation within a transaction.
-     *
-     * <p>This is a convenience method for write operations. It uses default transaction settings.</p>
-     *
-     * @param <T> the return type
-     * @param callback the code to execute within the transaction
-     * @return the result of the callback
-     * @throws Exception if the callback throws an exception
+     * Execute a write operation within a transaction using default settings.
      */
-    default <T> T executeWrite(TransactionExecutor<T> callback) throws Exception {
-        return execute(TransactionDefinition.withDefaults(), callback);
+    default <R> R executeWrite(TransactionExecution<T, R> execution) throws Exception {
+        return execute(TransactionDefinition.withDefaults(), execution);
     }
 }

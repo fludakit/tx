@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.it.lifecycle;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Drives the interceptor lifecycle against a stub {@link PlatformTransactionManager} to verify the
+ * Drives the interceptor lifecycle against a stub {@link TransactionManager} to verify the
  * completion contract (exactly-once completion, rollback-only, begin/commit/rollback failures).
  */
 @ExtendWith(WeldJunit5Extension.class)
@@ -90,7 +90,7 @@ class TransactionLifecycleTest {
     }
 
     @Singleton
-    public static class StubTransactionManager implements PlatformTransactionManager {
+    public static class StubTransactionManager implements TransactionManager<String> {
         int beginCount;
         int commitCount;
         int rollbackCount;
@@ -139,6 +139,11 @@ class TransactionLifecycleTest {
             if (rollbackFailure != null) {
                 throw rollbackFailure;
             }
+        }
+
+        @Override
+        public String getResource(TransactionContext context) {
+            return "stub-resource";
         }
     }
 

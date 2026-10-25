@@ -1,26 +1,27 @@
 package io.github.fludakit.tx.cdi;
 
-import io.github.fludakit.tx.PlatformTransactionManager;
+import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.support.DefaultTransactionalOperations;
 import io.github.fludakit.tx.support.TransactionalOperations;
 
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import jakarta.inject.Inject;
 
 /**
- * CDI producer for {@link TransactionalOperations}.
+ * CDI producer for {@link TransactionalOperations}, resolved per injection point from the
+ * application-provided {@link TransactionManager}.
  *
- * <p>Produces an {@link ApplicationScoped} {@link TransactionalOperations} backed by the
- * application-provided {@link PlatformTransactionManager}. This enables programmatic transaction
- * management via injection:</p>
+ * <p>CDI resolves the producer's type parameter per injection point, so applications inject the
+ * {@code TransactionalOperations} matching their manager's resource type:</p>
  *
  * <pre>{@code
- * @Inject TransactionalOperations txOps;
+ * @Inject TransactionalOperations<DataSource> txOps;       // DataSourceTransactionManager
+ * @Inject TransactionalOperations<EntityManager> jpaOps;   // JpaTransactionManager
  *
  * public void doWork() {
- *     txOps.execute(ctx -> {
- *         // ... transactional work ...
+ *     txOps.execute(ds -> {
+ *         try (Connection c = ds.getConnection()) {
+ *             // joins the active transaction
+ *         }
  *         return result;
  *     });
  * }
@@ -29,15 +30,10 @@ import jakarta.inject.Inject;
  * @see TransactionalOperations
  * @see DefaultTransactionalOperations
  */
-@ApplicationScoped
 public class TransactionalOperationsProducer {
 
-    @Inject
-    private PlatformTransactionManager transactionManager;
-
     @Produces
-    @ApplicationScoped
-    public TransactionalOperations transactionalOperations() {
-        return new DefaultTransactionalOperations(transactionManager);
+    public <T> TransactionalOperations<T> transactionalOperations(TransactionManager<T> transactionManager) {
+        return new DefaultTransactionalOperations<>(transactionManager);
     }
 }
