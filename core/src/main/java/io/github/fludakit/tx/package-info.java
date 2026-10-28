@@ -1,18 +1,24 @@
 /**
- * Resource-local transaction management for Jakarta EE and Java SE applications.
+ * Resource-local transaction management for Jakarta EE and Java SE applications — the
+ * application-facing API.
  *
- * <p>This package provides a lightweight transaction management SPI and support classes for
- * managing resource-local transactions (JDBC, JPA) without requiring a full JTA implementation.
- * The main entry point is {@link io.github.fludakit.tx.TransactionManager}, which
- * defines the contract for starting, committing, and rolling back transactions.</p>
+ * <p>This package provides a lightweight transaction management SPI for managing resource-local
+ * transactions (JDBC, JPA) without requiring a full JTA implementation. The main entry point is
+ * {@link io.github.fludakit.tx.TransactionManager}, which defines the contract for starting,
+ * committing, and rolling back transactions.</p>
+ *
+ * <p>Only the types an application calls (or an adapter implements) live here; the runtime
+ * glue and SPI plumbing live in {@code io.github.fludakit.tx.support}.</p>
  *
  * <h2>Core Concepts</h2>
  * <ul>
  *   <li>{@link io.github.fludakit.tx.TransactionManager} — SPI for transaction lifecycle management</li>
  *   <li>{@link io.github.fludakit.tx.TransactionDefinition} — Transaction propagation and isolation settings</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionalOperations} — Programmatic transaction execution</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionExecution} — The unit of work handed to {@code execute}</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionSavepoint} — A handle to a transaction savepoint</li>
  *   <li>{@link io.github.fludakit.tx.support.TransactionContext} — Holds bound resources and callbacks for a transaction</li>
  *   <li>{@link io.github.fludakit.tx.support.TransactionCallback} — Lifecycle hooks (beforeCommit, afterCompletion, etc.)</li>
- *   <li>{@link io.github.fludakit.tx.support.TransactionalOperations} — Programmatic transaction execution</li>
  * </ul>
  *
  * <h2>Usage with CDI</h2>
@@ -33,7 +39,7 @@
  * }</pre>
  *
  * <h2>Programmatic Usage</h2>
- * <p>For programmatic control, inject {@link io.github.fludakit.tx.support.TransactionalOperations}
+ * <p>For programmatic control, inject {@link io.github.fludakit.tx.TransactionalOperations}
  * — the execute callback receives the transaction's backing resource directly:</p>
  * <pre>{@code
  * @Inject
@@ -74,7 +80,9 @@
  *
  * @see io.github.fludakit.tx.TransactionManager
  * @see io.github.fludakit.tx.TransactionDefinition
+ * @see io.github.fludakit.tx.TransactionalOperations
+ * @see io.github.fludakit.tx.TransactionExecution
  * @see io.github.fludakit.tx.support.TransactionContext
- * @see io.github.fludakit.tx.support.TransactionalOperations
+ * @see io.github.fludakit.tx.support.TransactionCallback
  */
 package io.github.fludakit.tx;

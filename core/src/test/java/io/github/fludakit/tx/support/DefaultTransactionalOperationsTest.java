@@ -4,7 +4,7 @@ import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionSavepoint;
-import io.github.fludakit.tx.TransactionSavepointManager;
+import io.github.fludakit.tx.support.TransactionSavepointManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

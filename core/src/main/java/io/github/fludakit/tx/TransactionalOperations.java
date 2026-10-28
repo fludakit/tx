@@ -1,6 +1,4 @@
-package io.github.fludakit.tx.support;
-
-import io.github.fludakit.tx.TransactionDefinition;
+package io.github.fludakit.tx;
 
 /**
  * Operations for executing code within transaction boundaries, parameterized by the backing
@@ -14,14 +12,14 @@ import io.github.fludakit.tx.TransactionDefinition;
  * &#64;Inject TransactionalOperations&lt;EntityManager&gt; jpaOps;
  *
  * public void createUser(User user) {
- *     jpaOps.execute(em -> {
+ *     jpaOps.execute((em, status) -> {
  *         em.persist(user);
  *         return user.getId();
  *     });
  * }
  * }</pre>
  *
- * <p>The type parameter follows the {@link io.github.fludakit.tx.TransactionManager} the
+ * <p>The type parameter follows the {@link TransactionManager} the
  * operations are built from: {@code DataSource} for the JDBC manager (an aware view whose
  * {@code getConnection()} joins the active transaction), {@code EntityManager} for the JPA
  * manager.</p>
@@ -33,7 +31,7 @@ import io.github.fludakit.tx.TransactionDefinition;
  *
  * @param <T> the backing resource type handed to the execute callback
  * @see TransactionExecution
- * @see io.github.fludakit.tx.TransactionManager
+ * @see TransactionManager
  */
 public interface TransactionalOperations<T> {
 
@@ -85,7 +83,7 @@ public interface TransactionalOperations<T> {
      *
      * <p>Outside an active transaction this behaves like {@link #execute(TransactionExecution)}
      * (a full transaction is begun, there is nothing to nest into). Requires a
-     * {@link io.github.fludakit.tx.TransactionManager} with savepoint support.</p>
+     * {@link TransactionManager} with savepoint support.</p>
      */
     default <R> R executeNested(TransactionExecution<T, R> execution) throws Exception {
         throw new UnsupportedOperationException("executeNested requires a DefaultTransactionalOperations");
