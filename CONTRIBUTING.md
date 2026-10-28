@@ -11,7 +11,7 @@ This document describes how to set up the project, make changes, and submit them
 
 ## Prerequisites
 
-- JDK 21 or later (JDK 25 is required to publish a release to Maven Central).
+- JDK 25 to build: the multi-release overlay in `META-INF/versions/25` is compiled with `--release 25`. The published jars run on JDK 21 and later.
 - Maven 3.9+ (or use the included wrapper `./mvnw`).
 
 ## Building
