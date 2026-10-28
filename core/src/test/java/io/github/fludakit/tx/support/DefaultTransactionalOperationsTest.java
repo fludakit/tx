@@ -90,14 +90,17 @@ class DefaultTransactionalOperationsTest {
 
     @Test
     void execute_rollbackOnly_forcesRollback() throws Exception {
-        TransactionContextHolder.call(txManager.getTransaction(TransactionDefinition.DEFAULT), () -> {
-            txOps.execute((res, status) -> {
-                TransactionContextHolder.get().setRollbackOnly();
+        // A participating (REQUIRED) call that marks the shared transaction rollback-only must
+        // force the outermost boundary to roll back even though it completes normally.
+        txOps.execute((res, status) -> {
+            txOps.execute((innerResource, innerStatus) -> {
+                innerStatus.setRollbackOnly();
                 return null;
             });
             return null;
         });
 
+        assertEquals(1, txManager.beginCount, "the inner REQUIRED call must join, not begin");
         assertEquals(0, txManager.commitCount);
         assertEquals(1, txManager.rollbackCount);
     }
