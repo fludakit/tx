@@ -74,7 +74,7 @@ class QualifiedEventReplayTest {
         }
     }
 
-    @Dependent
+    @Singleton
     public static class EventObservers {
 
         final List<String> unqualifiedSeen = new ArrayList<>();
