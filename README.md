@@ -6,7 +6,7 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 ## Modules
 
-- `fluda-tx-core`: SPI (`PlatformTransactionManager`), exceptions, and synchronization infrastructure.
+- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, exceptions) plus the `support` package holding the transaction context, status, callbacks, and savepoint SPI.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
 - `fluda-tx-jdbc`: Resource-local `DataSourceTransactionManager` and `TransactionAwareDataSourceProxy`.
 - `fluda-tx-jpa`: JPA-based transaction manager (*coming soon*).

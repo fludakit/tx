@@ -1,8 +1,8 @@
 package io.github.fludakit.tx.cdi;
 
 import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.TransactionalOperations;
 import io.github.fludakit.tx.support.DefaultTransactionalOperations;
-import io.github.fludakit.tx.support.TransactionalOperations;
 
 import jakarta.enterprise.inject.Produces;
 
