@@ -6,14 +6,15 @@ import io.github.fludakit.tx.support.TransactionContextHolder;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.Reception;
 import jakarta.enterprise.event.TransactionPhase;
 import jakarta.enterprise.inject.spi.AfterBeanDiscovery;
-import jakarta.enterprise.inject.spi.AnnotatedMethod;
 import jakarta.enterprise.inject.spi.AnnotatedType;
 import jakarta.enterprise.inject.spi.Extension;
 import jakarta.enterprise.inject.spi.ObserverMethod;
@@ -21,14 +22,15 @@ import jakarta.enterprise.inject.spi.ProcessAnnotatedType;
 import jakarta.enterprise.inject.spi.ProcessObserverMethod;
 import jakarta.inject.Singleton;
 import jakarta.interceptor.Interceptor;
-import jakarta.transaction.Transactional;
 
 /**
  * Portable extension that wires {@code jakarta.transaction.Transactional} to the CDI container:
  *
  * <ul>
- *   <li>Adds the internal {@link TransactionalBinding} to every {@code @Transactional} type, so the
- *       single {@link TransactionalInterceptor} matches all six {@code TxType} values.</li>
+ *   <li>Resolves each {@code @Transactional} type's transaction attributes once at deployment and
+ *       adds the internal {@link TransactionalBinding} to it, so the single
+ *       {@link TransactionalInterceptor} matches all six {@code TxType} values without resolving
+ *       annotations per invocation.</li>
  *   <li>Vetoes every {@code @Observes(during != IN_PROGRESS)} observer and replays it at the matching
  *       phase through a {@link TransactionalObserverRegistry}.</li>
  * </ul>
@@ -36,23 +38,15 @@ import jakarta.transaction.Transactional;
 public class TransactionalCdiExtension implements Extension {
 
     private final List<CollectedObserver> transactionalObservers = new ArrayList<>();
-
-    private static <T> boolean hasTransactional(AnnotatedType<T> annotatedType) {
-        if (annotatedType.isAnnotationPresent(Transactional.class)) {
-            return true;
-        }
-        for (AnnotatedMethod<? super T> method : annotatedType.getMethods()) {
-            if (method.isAnnotationPresent(Transactional.class)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    private final Map<Class<?>, TransactionalMetadata> metadata = new LinkedHashMap<>();
 
     public <T> void processAnnotatedType(@Observes ProcessAnnotatedType<T> event) {
         AnnotatedType<T> annotatedType = event.getAnnotatedType();
-        if (hasTransactional(annotatedType)) {
+        Class<?> beanClass = annotatedType.getJavaClass();
+        TransactionalMetadata resolved = TransactionalMetadata.forClass(beanClass);
+        if (resolved.isTransactional()) {
             event.configureAnnotatedType().add(TransactionalBinding.Literal.INSTANCE);
+            metadata.put(beanClass, resolved);
         }
     }
 
@@ -65,6 +59,11 @@ public class TransactionalCdiExtension implements Extension {
     }
 
     public void afterBeanDiscovery(@Observes AfterBeanDiscovery event) {
+        event.addBean()
+                .types(TransactionalMetadataRegistry.class)
+                .scope(Singleton.class)
+                .createWith(ctx -> new TransactionalMetadataRegistry(metadata));
+
         TransactionalObserverRegistry registry = new TransactionalObserverRegistry();
         for (CollectedObserver collected : transactionalObservers) {
             registry.register(collected.phase(), collected.observer());

@@ -13,7 +13,8 @@ import jakarta.interceptor.InterceptorBinding;
  * attribute is a CDI binding attribute, so a single interceptor declared with
  * {@code @Transactional} only matches {@code TxType.REQUIRED}. This marker binding has no binding
  * attributes; {@link TransactionalCdiExtension} adds it to every {@code @Transactional} type, and
- * {@link TransactionalInterceptor} reads the real annotation itself.
+ * {@link TransactionalInterceptor} looks up the {@link TransactionalMetadata} the extension
+ * resolved for the type.
  */
 @InterceptorBinding
 @Target({ElementType.TYPE, ElementType.METHOD})

@@ -18,13 +18,15 @@ import jakarta.interceptor.InvocationContext;
 import jakarta.transaction.Transactional;
 
 /**
- * CDI interceptor honoring {@code jakarta.transaction.Transactional}: resolves the annotation,
- * dispatches on {@code TxType}, and drives the resource-local transaction lifecycle (begin, bind,
- * run, complete, fire phase events).
+ * CDI interceptor honoring {@code jakarta.transaction.Transactional}: dispatches on the resolved
+ * {@code TxType} and drives the resource-local transaction lifecycle (begin, bind, run, complete,
+ * fire phase events).
  *
  * <p>Bound to the internal {@link TransactionalBinding} marker (added by
  * {@link TransactionalCdiExtension} to every {@code @Transactional} type) so a single interceptor
- * matches all six {@code TxType} values.</p>
+ * matches all six {@code TxType} values. The annotation-to-{@link TransactionDefinition}
+ * resolution happens once at deployment in the extension; this interceptor only looks the
+ * precomputed definition up.</p>
  */
 @Interceptor
 @TransactionalBinding
@@ -36,6 +38,9 @@ public class TransactionalInterceptor {
 
     @Inject
     private TransactionalObserverRegistry observerRegistry;
+
+    @Inject
+    private TransactionalMetadataRegistry metadata;
 
     @SuppressWarnings("unchecked")
     private static <T extends Throwable> T sneakyThrow(Throwable throwable) throws T {
@@ -130,7 +135,7 @@ public class TransactionalInterceptor {
         context.markCompleted(TransactionCallback.CompletionStatus.ROLLED_BACK);
     }
 
-    // --- annotation resolution ---
+    // --- definition lookup ---
 
     private boolean shouldRollback(Throwable failure, TransactionDefinition definition) {
         Throwable candidate = failure;
@@ -152,67 +157,13 @@ public class TransactionalInterceptor {
     }
 
     private TransactionDefinition resolve(InvocationContext context) {
-        Transactional annotation = resolveAnnotation(context);
-        return annotation == null ? null : new TransactionDefinition(annotation);
-    }
-
-    private Transactional resolveAnnotation(InvocationContext context) {
         Method method = context.getMethod();
-        if (method != null) {
-            Transactional annotation = method.getAnnotation(Transactional.class);
-            if (annotation != null) {
-                return annotation;
-            }
-            Class<?> targetType = context.getTarget() != null ? context.getTarget().getClass() : method.getDeclaringClass();
-            annotation = findMethodAnnotation(targetType, method.getName(), method.getParameterTypes());
-            if (annotation != null) {
-                return annotation;
-            }
-            annotation = findOnType(method.getDeclaringClass());
-            if (annotation != null) {
-                return annotation;
-            }
-        }
-        return context.getTarget() != null ? findOnType(context.getTarget().getClass()) : null;
-    }
-
-    private Transactional findMethodAnnotation(Class<?> type, String name, Class<?>[] parameterTypes) {
-        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
-            Transactional annotation = methodAnnotation(current, name, parameterTypes);
-            if (annotation != null) {
-                return annotation;
-            }
-            for (Class<?> iface : current.getInterfaces()) {
-                annotation = methodAnnotation(iface, name, parameterTypes);
-                if (annotation != null) {
-                    return annotation;
-                }
-            }
-        }
-        return null;
-    }
-
-    private Transactional methodAnnotation(Class<?> type, String name, Class<?>[] parameterTypes) {
-        try {
-            return type.getDeclaredMethod(name, parameterTypes).getAnnotation(Transactional.class);
-        } catch (NoSuchMethodException e) {
+        if (method == null) {
             return null;
         }
-    }
-
-    private Transactional findOnType(Class<?> type) {
-        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
-            Transactional annotation = current.getAnnotation(Transactional.class);
-            if (annotation != null) {
-                return annotation;
-            }
-            for (Class<?> iface : current.getInterfaces()) {
-                annotation = iface.getAnnotation(Transactional.class);
-                if (annotation != null) {
-                    return annotation;
-                }
-            }
-        }
-        return null;
+        Class<?> targetClass = context.getTarget() != null
+                ? context.getTarget().getClass()
+                : method.getDeclaringClass();
+        return metadata.definitionFor(targetClass, method);
     }
 }
