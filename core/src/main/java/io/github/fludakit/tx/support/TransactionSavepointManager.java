@@ -1,10 +1,12 @@
-package io.github.fludakit.tx;
+package io.github.fludakit.tx.support;
+
+import io.github.fludakit.tx.TransactionSavepoint;
 
 /**
  * Savepoint operations over one active transaction, attached to its
- * {@link io.github.fludakit.tx.support.TransactionStatus} by a {@link TransactionManager} that
+ * {@link TransactionStatus} by a {@link io.github.fludakit.tx.TransactionManager} that
  * supports savepoints — reached from inside transactions via
- * {@link io.github.fludakit.tx.support.TransactionStatus#createSavepoint()}.
+ * {@link TransactionStatus#createSavepoint()}.
  *
  * <p>Implementations wrap their native construct (a JDBC {@code Savepoint}, a provider
  * equivalent). A manager without savepoint support attaches nothing and

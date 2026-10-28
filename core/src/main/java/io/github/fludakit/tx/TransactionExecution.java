@@ -1,4 +1,6 @@
-package io.github.fludakit.tx.support;
+package io.github.fludakit.tx;
+
+import io.github.fludakit.tx.support.TransactionStatus;
 
 /**
  * A unit of work executed inside a transaction boundary, receiving the transaction's backing

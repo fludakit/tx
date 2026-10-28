@@ -2,8 +2,10 @@ package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
+import io.github.fludakit.tx.TransactionExecution;
 import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionalOperations;
 
 import jakarta.transaction.Transactional;
 

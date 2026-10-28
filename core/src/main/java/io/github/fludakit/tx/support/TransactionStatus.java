@@ -2,7 +2,6 @@ package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionSavepoint;
-import io.github.fludakit.tx.TransactionSavepointManager;
 
 import java.util.Objects;
 
@@ -15,7 +14,7 @@ import java.util.Objects;
  * including status ones.</p>
  *
  * <p>When the underlying {@link io.github.fludakit.tx.TransactionManager} supports savepoints,
- * it attaches a {@link io.github.fludakit.tx.TransactionSavepointManager} and the status exposes
+ * it attaches a {@link TransactionSavepointManager} and the status exposes
  * {@link #createSavepoint()}/{@link #rollbackToSavepoint(TransactionSavepoint)}/
  * {@link #releaseSavepoint(TransactionSavepoint)} — the handles a nested section works with.</p>
  *

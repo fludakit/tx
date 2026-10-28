@@ -6,9 +6,8 @@ import io.github.fludakit.tx.support.TransactionContextHolder;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.Reception;
@@ -79,38 +78,39 @@ public class TransactionalCdiExtension implements Extension {
         // Register @TransactionScoped context
         event.addContext(new TransactionScopeContext());
 
-        // One capturing observer per distinct (phase, type, qualifiers): CDI fires it only for
-        // events those vetoed observers would actually receive, so buffering the capture group's
-        // qualifier set alongside the payload lets the replay match on type AND qualifiers.
-        Map<CaptureKey, List<ObserverMethod<?>>> captures = new LinkedHashMap<>();
+        // One capturing observer per distinct (type, qualifiers): CDI fires it only for the
+        // events the vetoed observers of that shape would actually receive, so the buffer records
+        // the payload under that group's key and the replay delivers it to exactly those
+        // observers. The phase is deliberately not part of the key — capture happens at
+        // IN_PROGRESS for every group, so keying by phase would register one capture observer per
+        // phase and buffer each fired event once per phase.
+        Set<TransactionEventBuffer.CaptureKey> captures = new LinkedHashSet<>();
         for (CollectedObserver collected : transactionalObservers) {
             ObserverMethod<?> observer = collected.observer();
-            captures.computeIfAbsent(
-                            new CaptureKey(collected.phase(), observer.getObservedType(), observer.getObservedQualifiers()),
-                            key -> new ArrayList<>())
-                    .add(observer);
+            captures.add(captureKey(observer));
         }
-        for (Map.Entry<CaptureKey, List<ObserverMethod<?>>> capture : captures.entrySet()) {
-            event.addObserverMethod(new CapturingObserver(capture.getKey()));
+        for (TransactionEventBuffer.CaptureKey capture : captures) {
+            event.addObserverMethod(new CapturingObserver(capture));
         }
+    }
+
+    private static TransactionEventBuffer.CaptureKey captureKey(ObserverMethod<?> observer) {
+        return new TransactionEventBuffer.CaptureKey(observer.getObservedType(), observer.getObservedQualifiers());
     }
 
     private record CollectedObserver(TransactionPhase phase, ObserverMethod<?> observer) {
     }
 
-    private record CaptureKey(TransactionPhase phase, Type observedType, Set<Annotation> qualifiers) {
-    }
-
     /**
      * Captures the events one vetoed-observer group would receive — its declared type and
-     * qualifier set are the capture key, so CDI delivers exactly the events those observers
-     * would get, and the buffer can record the qualifiers for the replay.
+     * qualifier set identify the group, so CDI hands it exactly the events those observers
+     * would get, and the buffer files them under the same key for the replay.
      */
     private static final class CapturingObserver implements ObserverMethod<Object> {
 
-        private final CaptureKey key;
+        private final TransactionEventBuffer.CaptureKey key;
 
-        CapturingObserver(CaptureKey key) {
+        CapturingObserver(TransactionEventBuffer.CaptureKey key) {
             this.key = key;
         }
 
@@ -150,7 +150,7 @@ public class TransactionalCdiExtension implements Extension {
             if (ctx != null && ctx.isActualTransactionActive()) {
                 TransactionEventBuffer buffer = ctx.getResource(TransactionEventBuffer.class);
                 if (buffer != null) {
-                    buffer.add(event, key.qualifiers());
+                    buffer.add(key, event);
                 }
             }
         }

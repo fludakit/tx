@@ -1,14 +1,17 @@
 package io.github.fludakit.tx.cdi;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Per-transaction buffer of CDI events fired while the transaction was in progress, recorded
- * with the qualifiers the capturing observer was registered for.
+ * per capture group.
  *
  * <p>Bound to the {@link io.github.fludakit.tx.support.TransactionContext} under
  * {@code TransactionEventBuffer.class} by {@link TransactionEventReplay} when the interceptor
@@ -16,18 +19,23 @@ import java.util.Set;
  */
 final class TransactionEventBuffer {
 
-    /** One buffered event: the payload and the qualifiers it was captured for. */
-    record BufferedEvent(Object payload, Set<Annotation> qualifiers) {
+    /**
+     * Identity of one group of vetoed observers: the observed type and the qualifier set they
+     * were declared with. CDI notifies the capture observer registered for a group exactly for
+     * the events that group's observers would receive, so the key is both the capture filter and
+     * the replay lookup key.
+     */
+    record CaptureKey(Type observedType, Set<Annotation> qualifiers) {
     }
 
-    private final List<BufferedEvent> events = new ArrayList<>();
+    private final Map<CaptureKey, List<Object>> events = new LinkedHashMap<>();
 
-    void add(Object payload, Set<Annotation> qualifiers) {
-        events.add(new BufferedEvent(payload, qualifiers));
+    void add(CaptureKey key, Object payload) {
+        events.computeIfAbsent(key, k -> new ArrayList<>()).add(payload);
     }
 
-    /** Unmodifiable view of the buffered events, in firing order. */
-    List<BufferedEvent> events() {
-        return Collections.unmodifiableList(events);
+    /** Buffered payloads for one capture group, in firing order. */
+    List<Object> events(CaptureKey key) {
+        return Collections.unmodifiableList(events.getOrDefault(key, List.of()));
     }
 }

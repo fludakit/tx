@@ -5,8 +5,6 @@ import io.github.fludakit.tx.support.TransactionContext;
 import jakarta.enterprise.event.TransactionPhase;
 import jakarta.enterprise.inject.spi.ObserverMethod;
 
-import java.lang.reflect.ParameterizedType;
-import java.lang.reflect.Type;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -54,40 +52,21 @@ final class TransactionEventReplay implements TransactionCallback {
         notify(TransactionPhase.AFTER_COMPLETION);
     }
 
+    /**
+     * Replays, to every observer of the phase, the events buffered for that observer's own
+     * capture group. The capture observer for a group is notified by CDI exactly for the events
+     * the group's observers are entitled to — type assignability and qualifier matching included
+     * — so replaying the group's buffer reproduces CDI delivery without re-deriving qualifier
+     * semantics from the event alone.
+     */
     private void notify(TransactionPhase phase) {
-        List<ObserverMethod<?>> observers = registry.getObservers(phase);
-        if (observers.isEmpty()) {
-            return;
-        }
-        for (TransactionEventBuffer.BufferedEvent event : buffer.events()) {
-            for (ObserverMethod<?> observer : observers) {
-                if (matches(observer, event)) {
-                    notifySafely(observer, event.payload());
-                }
+        for (ObserverMethod<?> observer : registry.getObservers(phase)) {
+            TransactionEventBuffer.CaptureKey key = new TransactionEventBuffer.CaptureKey(
+                    observer.getObservedType(), observer.getObservedQualifiers());
+            for (Object payload : buffer.events(key)) {
+                notifySafely(observer, payload);
             }
         }
-    }
-
-    /**
-     * An observer receives a buffered event when the payload's type is assignable to the
-     * observer's type and the observer's qualifiers are covered by the capture group's — the
-     * group fired only for events carrying at least those qualifiers.
-     */
-    private static boolean matches(ObserverMethod<?> observer, TransactionEventBuffer.BufferedEvent event) {
-        if (!rawType(observer.getObservedType()).isAssignableFrom(event.payload().getClass())) {
-            return false;
-        }
-        return observer.getObservedQualifiers().containsAll(event.qualifiers());
-    }
-
-    private static Class<?> rawType(Type type) {
-        if (type instanceof Class<?> clazz) {
-            return clazz;
-        }
-        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> clazz) {
-            return clazz;
-        }
-        return Object.class;
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})

@@ -42,7 +42,7 @@ import io.github.fludakit.tx.support.TransactionContext;
  *
  * @param <T> the backing resource type callers receive inside a transaction
  * @see TransactionContext
- * @see io.github.fludakit.tx.support.TransactionalOperations
+ * @see TransactionalOperations
  */
 public interface TransactionManager<T> {
 
@@ -74,7 +74,7 @@ public interface TransactionManager<T> {
     /**
      * The backing resource of the transaction bound to the current thread: an aware
      * {@code DataSource} view (JDBC) or the bound {@code EntityManager} (JPA). This is what
-     * {@link io.github.fludakit.tx.support.TransactionalOperations} hands to the execute
+     * {@link TransactionalOperations} hands to the execute
      * callback. No context parameter — the ambient, thread-bound transaction is resolved
      * internally (outside any transaction, the non-transactional view or {@code null}).
      *
