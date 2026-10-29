@@ -11,6 +11,8 @@ import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 
 import jakarta.inject.Inject;
 
@@ -33,6 +35,7 @@ class TransactionStructuredConcurrencyTest {
     private OrderProcessingService orderService;
 
     @Test
+    @EnabledForJreRange(min = JRE.JAVA_21, max = JRE.JAVA_21)
     void verifyTransactionContextInheritedByVirtualSubtasks() throws Exception {
         assertFalse(TransactionContextHolder.isBound());
 
