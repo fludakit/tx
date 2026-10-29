@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * <h2>Usage Example</h2>
  * <pre>{@code
- * TransactionManager<DataSource> txManager = new DataSourceTransactionManager(dataSource);
+ * TransactionManager<DataSource> txManager = new JdbcTransactionManager(dataSource);
  * TransactionalOperations<DataSource> txOps = new DefaultTransactionalOperations<>(txManager);
  *
  * List<User> users = txOps.execute(ds -> {

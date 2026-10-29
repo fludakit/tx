@@ -14,7 +14,7 @@ import jakarta.enterprise.inject.Produces;
  * {@code TransactionalOperations} matching their manager's resource type:</p>
  *
  * <pre>{@code
- * @Inject TransactionalOperations<DataSource> txOps;       // DataSourceTransactionManager
+ * @Inject TransactionalOperations<DataSource> txOps;       // JdbcTransactionManager
  * @Inject TransactionalOperations<EntityManager> jpaOps;   // JpaTransactionManager
  *
  * public void doWork() {

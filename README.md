@@ -22,7 +22,7 @@ import jakarta.transaction.Transactional;
 
 DataSource raw = ...; // your connection pool
 DataSource txAware = new TransactionAwareDataSourceProxy(raw);
-PlatformTransactionManager txManager = new DataSourceTransactionManager(raw);
+PlatformTransactionManager txManager = new JdbcTransactionManager(raw);
 
 @Transactional
 public void createOrder(Order order) {
