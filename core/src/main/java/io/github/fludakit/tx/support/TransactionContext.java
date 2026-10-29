@@ -1,10 +1,10 @@
 package io.github.fludakit.tx.support;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * The per-transaction context — the single object that captures one resource-local transaction.
@@ -50,8 +50,8 @@ public final class TransactionContext {
 
     private final boolean actualTransactionActive;
     private final boolean immutable;
-    private final Map<Class<?>, Object> resources = new LinkedHashMap<>();
-    private final List<TransactionCallback> callbacks = new ArrayList<>();
+    private final Map<Class<?>, Object> resources = new ConcurrentHashMap<>();
+    private final List<TransactionCallback> callbacks = new CopyOnWriteArrayList<>();
     private final TransactionStatus status;
 
     public TransactionContext(boolean actualTransactionActive) {
@@ -77,6 +77,17 @@ public final class TransactionContext {
         return actualTransactionActive;
     }
 
+    /**
+     * Whether the context may still be used: not completed, and not the shared {@link #NON_TRANSACTIONAL}
+     * sentinel that rejects all mutations.
+     *
+     * <p>Used by the mutation guards before any state change — a completed transaction (or the
+     * immutable sentinel) must not be touched again.</p>
+     */
+    public boolean isLive() {
+        return !status.isCompleted();
+    }
+
     /** The transaction's status facts: read-only, new/joined, rollback-only, completion state. */
     public TransactionStatus getStatus() {
         return status;
@@ -84,8 +95,25 @@ public final class TransactionContext {
 
     /** Binds the transaction's resource under the given type key, replacing any previous binding. */
     public void bindResource(Class<?> type, Object value) {
-        requireMutable("bindResource");
+        requireUncompleted("bindResource");
         resources.put(type, value);
+    }
+
+    /**
+     * Binds the transaction's resource under the given type key unless one is already bound and
+     * returns the existing binding — the losing value — when another thread already joined.
+     *
+     * <p>Atomic join semantics: only the caller that wins the race registers the new binding and
+     * owns the transaction cleanup for it, so two threads joining concurrently cannot double-bind
+     * or leak the loser's resource.</p>
+     *
+     * @param type the resource type key
+     * @param value the resource value to bind, if absent
+     * @return the previously bound value, or {@code null} if this call won the binding
+     */
+    public Object bindResourceIfAbsent(Class<?> type, Object value) {
+        requireUncompleted("bindResourceIfAbsent");
+        return resources.putIfAbsent(type, value);
     }
 
     /** The transaction's resource of the given type, or {@code null} if none is bound. */
@@ -95,7 +123,7 @@ public final class TransactionContext {
     }
 
     public void registerCallback(TransactionCallback callback) {
-        requireMutable("registerCallback");
+        requireUncompleted("registerCallback");
         callbacks.add(callback);
     }
 
@@ -104,9 +132,9 @@ public final class TransactionContext {
         return Collections.unmodifiableMap(resources);
     }
 
-    /** Unmodifiable view of the registered callbacks; use {@link #registerCallback} to add. */
+    /** Unmodifiable snapshot of the registered callbacks; use {@link #registerCallback} to add. */
     public List<TransactionCallback> getCallbacks() {
-        return Collections.unmodifiableList(callbacks);
+        return List.copyOf(callbacks);
     }
 
     public void triggerBeforeCommit(boolean readOnly) {
@@ -138,7 +166,7 @@ public final class TransactionContext {
     }
 
     public void setRollbackOnly() {
-        requireMutable("setRollbackOnly");
+        requireUncompleted("setRollbackOnly");
         status.setRollbackOnly();
     }
 
@@ -168,6 +196,15 @@ public final class TransactionContext {
             throw new UnsupportedOperationException(
                     operation + " is not allowed on TransactionContext.NON_TRANSACTIONAL — the "
                             + "sentinel is shared by every non-transactional execution");
+        }
+    }
+
+    private void requireUncompleted(String operation) {
+        requireMutable(operation);
+        if (!isLive()) {
+            throw new IllegalStateException(
+                    operation + " is not allowed on a completed TransactionContext — a completed "
+                            + "transaction is no longer usable");
         }
     }
 }

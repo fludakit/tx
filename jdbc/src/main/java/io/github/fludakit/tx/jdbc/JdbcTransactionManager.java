@@ -29,29 +29,29 @@ import javax.sql.DataSource;
  * so plain JDBC code joins the transaction transparently — also outside any transaction, where
  * it simply delegates to the pool.</p>
  */
-public class DataSourceTransactionManager implements TransactionManager<DataSource> {
+public class JdbcTransactionManager implements TransactionManager<DataSource> {
 
-    private static final Logger LOG = Logger.getLogger(DataSourceTransactionManager.class.getName());
+    private static final Logger LOG = Logger.getLogger(JdbcTransactionManager.class.getName());
 
-    private final DataSource dataSource;
-    private final TransactionAwareDataSourceProxy awareDataSource;
+    private final DataSource rawDataSource;
+    private final TransactionAwareDataSourceProxy dataSourceProxy;
 
     private static final String SAVEPOINT_PREFIX = "fluda_sp_";
 
     private final AtomicInteger savepointCounter = new AtomicInteger();
 
-    public DataSourceTransactionManager(DataSource dataSource) {
-        this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
-        this.awareDataSource = new TransactionAwareDataSourceProxy(this.dataSource);
+    public JdbcTransactionManager(DataSource dataSource) {
+        this.rawDataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
+        this.dataSourceProxy = new TransactionAwareDataSourceProxy(this.rawDataSource);
     }
 
     public DataSource getDataSource() {
-        return dataSource;
+        return rawDataSource;
     }
 
     @Override
     public DataSource getResource() {
-        return awareDataSource;
+        return dataSourceProxy;
     }
 
     /**
@@ -99,7 +99,7 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
     public TransactionContext getTransaction(TransactionDefinition definition) {
         Connection connection;
         try {
-            connection = dataSource.getConnection();
+            connection = rawDataSource.getConnection();
         } catch (SQLException ex) {
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }

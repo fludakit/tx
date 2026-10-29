@@ -2,12 +2,11 @@ package io.github.fludakit.tx.cdi;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Per-transaction buffer of CDI events fired while the transaction was in progress, recorded
@@ -28,14 +27,14 @@ final class TransactionEventBuffer {
     record CaptureKey(Type observedType, Set<Annotation> qualifiers) {
     }
 
-    private final Map<CaptureKey, List<Object>> events = new LinkedHashMap<>();
+    private final Map<CaptureKey, List<Object>> events = new ConcurrentHashMap<>();
 
     void add(CaptureKey key, Object payload) {
-        events.computeIfAbsent(key, k -> new ArrayList<>()).add(payload);
+        events.computeIfAbsent(key, k -> new CopyOnWriteArrayList<>()).add(payload);
     }
 
     /** Buffered payloads for one capture group, in firing order. */
     List<Object> events(CaptureKey key) {
-        return Collections.unmodifiableList(events.getOrDefault(key, List.of()));
+        return List.copyOf(events.getOrDefault(key, List.of()));
     }
 }

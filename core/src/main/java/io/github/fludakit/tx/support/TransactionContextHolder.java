@@ -5,9 +5,11 @@ import java.util.concurrent.Callable;
 /**
  * Holds the current {@link TransactionContext} for the calling thread/scope.
  *
- * <p>This is the base (JDK 21) implementation backed by an {@link InheritableThreadLocal}. On
- * JDK 25+ the multi-release override carries the state via {@code ScopedValue} so it also
- * propagates to structured-concurrency subtasks.</p>
+ * <p>This is the base (JDK 21) implementation backed by an {@link InheritableThreadLocal} that
+ * carries a {@link ContextBinding} — the handle of the transaction context this thread participates
+ * in. On JDK 25+ the multi-release override carries the state via {@code ScopedValue} so it also
+ * propagates to structured-concurrency subtasks; that override has no fallback and therefore never
+ * inherits a context it did not receive through a live scope.</p>
  *
  * <h2>Purpose</h2>
  * <p>{@code TransactionContextHolder} provides thread-local storage for the current transaction
@@ -34,6 +36,11 @@ import java.util.concurrent.Callable;
  * <p>This class is thread-safe. Each thread has its own transaction context. The {@link #call}
  * method ensures proper cleanup even if the action throws an exception.</p>
  *
+ * <h2>Lifetime of an inherited context</h2>
+ * <p>A context handed to {@link #call} is closed when the call scope ends, which revokes it for
+ * every thread that was created while the scope was active and inherited it — a thread that outlives
+ * the transaction sees no context at all instead of a completed one.</p>
+ *
  * <h2>Nested Transactions</h2>
  * <p>The {@link #call} method supports nested transactions. If a context is already bound when
  * {@code call} is invoked, the previous context is saved and restored after the action completes.
@@ -49,7 +56,7 @@ import java.util.concurrent.Callable;
  */
 public final class TransactionContextHolder {
 
-    private static final InheritableThreadLocal<TransactionContext> CURRENT = new InheritableThreadLocal<>();
+    private static final InheritableThreadLocal<ContextBinding> BINDING = new InheritableThreadLocal<>();
 
     private TransactionContextHolder() {
     }
@@ -57,25 +64,29 @@ public final class TransactionContextHolder {
     /**
      * Returns the bound context, or {@code null} if none is bound.
      *
-     * <p>This is the primary method for accessing the current transaction context. Callers should
-     * always check for {@code null} before using the context.</p>
+     * <p>A context that already completed is never returned: contexts must not outlive the
+     * transaction that produced them, so a leftover inherited binding is treated as absent.</p>
      *
      * @return the current transaction context, or {@code null} if no transaction is active
      */
     public static TransactionContext get() {
-        return CURRENT.get();
+        ContextBinding binding = BINDING.get();
+        TransactionContext context = binding == null ? null : binding.get();
+        if (context == null) {
+            return null;
+        }
+        // a context that completed is no longer usable — e.g. an inherited one whose transaction
+        // has already finished — and must not be handed back as the current context
+        return context.isCompleted() ? null : context;
     }
 
     /**
      * Whether any context (including {@link TransactionContext#NON_TRANSACTIONAL}) is bound.
      *
-     * <p>This method returns {@code true} if a context is bound, even if it represents a
-     * non-transactional state (e.g., for {@code NOT_SUPPORTED} propagation).</p>
-     *
      * @return {@code true} if a context is bound to the current thread
      */
     public static boolean isBound() {
-        return CURRENT.get() != null;
+        return get() != null;
     }
 
     /**
@@ -85,11 +96,6 @@ public final class TransactionContextHolder {
      * <p>This method is the primary way to activate a transaction context. It ensures proper
      * cleanup even if the action throws an exception.</p>
      *
-     * <h3>Nested Calls</h3>
-     * <p>If a context is already bound when this method is called, the previous context is saved
-     * and restored after the action completes. This supports nested transactions and transaction
-     * suspension.</p>
-     *
      * @param <T> the return type of the action
      * @param context the transaction context to bind
      * @param action the action to execute with the context bound
@@ -97,15 +103,19 @@ public final class TransactionContextHolder {
      * @throws Exception if the action throws an exception
      */
     public static <T> T call(TransactionContext context, Callable<T> action) throws Exception {
-        TransactionContext previous = CURRENT.get();
-        CURRENT.set(context);
+        ContextBinding previous = BINDING.get();
+        ContextBinding binding = new ContextBinding(context);
+        BINDING.set(binding);
         try {
             return action.call();
         } finally {
+            // close the handle before restoring the previous one so that every thread that
+            // inherited this scope stops seeing the context once it completes
+            binding.close();
             if (previous == null) {
-                CURRENT.remove();
+                BINDING.remove();
             } else {
-                CURRENT.set(previous);
+                BINDING.set(previous);
             }
         }
     }

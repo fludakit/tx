@@ -12,6 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransactionContextTest {
@@ -98,5 +99,31 @@ class TransactionContextTest {
             assertTrue(ctx.isRollbackOnly());
             return null;
         });
+    }
+
+    @Test
+    void bindResourceIfAbsentReturnsTheWinner() throws Exception {
+        TransactionContext ctx = new TransactionContext(true);
+
+        Object winner = new Object();
+        assertNull(ctx.bindResourceIfAbsent(Object.class, winner));
+        Object loser = new Object();
+        assertSame(winner, ctx.bindResourceIfAbsent(Object.class, loser));
+        assertSame(winner, ctx.getResource(Object.class));
+    }
+
+    @Test
+    void mutationsAfterCompletionAreRejected() {
+        TransactionContext ctx = new TransactionContext(true);
+        ctx.markCompleted(TransactionCallback.CompletionStatus.COMMITTED);
+
+        assertThrows(IllegalStateException.class, () -> ctx.bindResource(Object.class, new Object()));
+        assertThrows(IllegalStateException.class, () -> ctx.registerCallback(new TransactionCallback() {
+            @Override
+            public void afterCompletion(CompletionStatus status) {
+            }
+        }));
+        assertThrows(IllegalStateException.class, ctx::setRollbackOnly);
+        assertThrows(IllegalStateException.class, () -> ctx.markCompleted(TransactionCallback.CompletionStatus.COMMITTED));
     }
 }

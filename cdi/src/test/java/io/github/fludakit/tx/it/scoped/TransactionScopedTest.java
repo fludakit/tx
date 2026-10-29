@@ -3,7 +3,8 @@ package io.github.fludakit.tx.it.scoped;
 import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
-import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
+import io.github.fludakit.tx.jdbc.JdbcTransactionManager;
+
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -68,7 +69,7 @@ class TransactionScopedTest {
     void transactionScoped_stateClearedAfterTransaction() {
         // Set value in first transaction
         service.setValue("first-tx");
-        
+
         // Verify it was set (within same transaction)
         String firstValue = service.setValueAndGetValue("first-tx");
         assertEquals("first-tx", firstValue);
@@ -94,7 +95,7 @@ class TransactionScopedTest {
         @Produces
         @ApplicationScoped
         public TransactionManager<DataSource> transactionManager(DataSource ds) {
-            return new DataSourceTransactionManager(ds);
+            return new JdbcTransactionManager(ds);
         }
     }
 

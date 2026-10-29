@@ -17,12 +17,12 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class DataSourceTransactionManagerTest {
+class JdbcTransactionManagerTest {
 
     @Test
     void getTransactionBindsConnectionWithAutoCommitDisabled() throws Exception {
         DataSource dataSource = newDataSource("dsmgr1");
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
 
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
         assertTrue(context.isActualTransactionActive());
@@ -36,7 +36,7 @@ class DataSourceTransactionManagerTest {
     @Test
     void commitAndRollbackDelegateToConnection() throws Exception {
         DataSource dataSource = newDataSource("dsmgr2");
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
 
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
         assertDoesNotThrow(() -> manager.commit(context));
@@ -49,7 +49,7 @@ class DataSourceTransactionManagerTest {
     @Test
     void afterCompletionResetsAndClosesConnection() throws Exception {
         DataSource dataSource = newDataSource("dsmgr3");
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
 
         TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
         Connection bound = context.getResource(Connection.class);
@@ -68,7 +68,7 @@ class DataSourceTransactionManagerTest {
         ConnectionCounters counters = new ConnectionCounters();
         Connection pooled = dataSource.getConnection();
         DataSource failing = new StubDataSource(() -> new FailingConnection(pooled, counters));
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(failing);
+        JdbcTransactionManager manager = new JdbcTransactionManager(failing);
 
         assertThrows(TransactionSystemException.class, () ->
                 manager.getTransaction(TransactionDefinition.DEFAULT));

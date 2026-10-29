@@ -8,15 +8,15 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 - `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, exceptions) plus the `support` package holding the transaction context, status, callbacks, and savepoint SPI.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
-- `fluda-tx-jdbc`: Resource-local `DataSourceTransactionManager` and `TransactionAwareDataSourceProxy`.
+- `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager` and `TransactionAwareDataSourceProxy`.
 - `fluda-tx-jpa`: JPA-based transaction manager (*coming soon*).
 
 ## Usage
 
-Wrap your `DataSource` with `TransactionAwareDataSourceProxy`, register a `DataSourceTransactionManager`, and annotate methods with `@Transactional`:
+Wrap your `DataSource` with `TransactionAwareDataSourceProxy`, register a `JdbcTransactionManager`, and annotate methods with `@Transactional`:
 
 ```java
-import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
+import io.github.fludakit.tx.jdbc.JdbcTransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
 import jakarta.transaction.Transactional;
 

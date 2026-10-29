@@ -9,8 +9,8 @@ import jakarta.enterprise.context.spi.CreationalContext;
 import jakarta.transaction.TransactionScoped;
 
 import java.lang.annotation.Annotation;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * CDI {@link jakarta.enterprise.context.spi.Context} implementation for
@@ -105,9 +105,16 @@ public class TransactionScopeContext implements jakarta.enterprise.context.spi.C
 
         BeanStore store = ctx.getResource(BeanStore.class);
         if (store == null) {
-            store = new BeanStore();
-            ctx.bindResource(BeanStore.class, store);
-            ctx.registerCallback(store);
+            // atomic get-or-create: bindResourceIfAbsent lets only one caller win the race to own
+            // this transaction's bean store, and only the winner registers transaction cleanup
+            BeanStore candidate = new BeanStore();
+            BeanStore bound = (BeanStore) ctx.bindResourceIfAbsent(BeanStore.class, candidate);
+            if (bound == null) {
+                ctx.registerCallback(candidate);
+                return candidate;
+            }
+            // lost the race — the winner owns the store and its cleanup
+            return bound;
         }
         return store;
     }
@@ -117,7 +124,7 @@ public class TransactionScopeContext implements jakarta.enterprise.context.spi.C
      */
     private static class BeanStore implements TransactionCallback {
 
-        private final Map<Contextual<?>, InstanceInfo<?>> instances = new HashMap<>();
+        private final Map<Contextual<?>, InstanceInfo<?>> instances = new ConcurrentHashMap<>();
 
         @SuppressWarnings("unchecked")
         <T> T get(Contextual<T> contextual) {
