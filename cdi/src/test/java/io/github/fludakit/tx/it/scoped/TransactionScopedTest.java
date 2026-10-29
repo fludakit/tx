@@ -5,6 +5,8 @@ import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
 import io.github.fludakit.tx.jdbc.JdbcTransactionManager;
 
+import java.sql.Connection;
+import javax.sql.DataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -94,7 +96,7 @@ class TransactionScopedTest {
 
         @Produces
         @ApplicationScoped
-        public TransactionManager<DataSource> transactionManager(DataSource ds) {
+        public TransactionManager<Connection> transactionManager(DataSource ds) {
             return new JdbcTransactionManager(ds);
         }
     }

@@ -21,8 +21,9 @@ import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
 import jakarta.transaction.Transactional;
 
 DataSource raw = ...; // your connection pool
-DataSource txAware = new TransactionAwareDataSourceProxy(raw);
-PlatformTransactionManager txManager = new JdbcTransactionManager(raw);
+JdbcTransactionManager txManager = new JdbcTransactionManager(raw);
+
+TransactionalOperations<Connection> txOps = new DefaultTransactionalOperations<>(txManager);
 
 @Transactional
 public void createOrder(Order order) {
