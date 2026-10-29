@@ -1,11 +1,15 @@
 package io.github.fludakit.tx.cdi;
 
+import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionException;
 import io.github.fludakit.tx.TransactionManager;
-import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.support.CallbackRegistrar;
+import io.github.fludakit.tx.support.RollbackDecisionStrategy;
+import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.support.TransactionContextHolder;
-import io.github.fludakit.tx.support.TransactionCallback;
+import io.github.fludakit.tx.support.TransactionStatus;
+import io.github.fludakit.tx.support.TransactionTemplate;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -27,6 +31,17 @@ import jakarta.transaction.Transactional;
  * matches all six {@code TxType} values. The annotation-to-{@link TransactionDefinition}
  * resolution happens once at deployment in the extension; this interceptor only looks the
  * precomputed definition up.</p>
+ *
+ * <p>The execution lifecycle (begin, bind, run, complete, cleanup) is owned by
+ * {@link TransactionTemplate}. This class only adapts the CDI
+ * {@link InvocationContext#proceed()} callback to the template's action interface, registers a
+ * {@link TransactionEventReplay} callback via the {@link CallbackRegistrar} hook, and uses the
+ * {@link RollbackDecisionStrategy#classified()} strategy: rollback follows the definition's
+ * {@code rollbackOn}/{@code dontRollbackOn} rules per the spec.</p>
+ *
+ * <p>The template is created lazily on first use because Weld injects
+ * {@link TransactionManager} and {@link TransactionalObserverRegistry} after construction, so
+ * they are unavailable in a field initializer.</p>
  */
 @Interceptor
 @TransactionalBinding
@@ -42,9 +57,28 @@ public class TransactionalInterceptor {
     @Inject
     private TransactionalMetadataRegistry metadata;
 
+    private volatile TransactionTemplate<Object> template;
+
     @SuppressWarnings("unchecked")
     private static <T extends Throwable> T sneakyThrow(Throwable throwable) throws T {
         throw (T) throwable;
+    }
+
+    private TransactionTemplate<Object> template() {
+        TransactionTemplate<Object> t = template;
+        if (t == null) {
+            synchronized (this) {
+                t = template;
+                if (t == null) {
+                    t = new TransactionTemplate<>((TransactionManager<Object>) transactionManager,
+                            RollbackDecisionStrategy.classified(),
+                            txContext -> txContext.registerCallback(
+                                    new TransactionEventReplay(txContext, observerRegistry)));
+                    template = t;
+                }
+            }
+        }
+        return t;
     }
 
     // --- lifecycle ---
@@ -75,86 +109,14 @@ public class TransactionalInterceptor {
             }
             case SUPPORTS -> context.proceed();
             case NOT_SUPPORTED -> TransactionContextHolder.call(TransactionContext.NON_TRANSACTIONAL, context::proceed);
-            case REQUIRES_NEW -> executeNew(context, definition);
-            case REQUIRED -> active ? context.proceed() : executeNew(context, definition);
+            case REQUIRES_NEW -> template().execute(definition,
+                    (resource, status) -> context.proceed());
+            case REQUIRED -> active ? context.proceed() : template().execute(definition,
+                    (resource, status) -> context.proceed());
         };
     }
 
-    private Object executeNew(InvocationContext invocation, TransactionDefinition definition) throws Exception {
-        TransactionContext context = transactionManager.getTransaction(definition);
-        context.registerCallback(new TransactionEventReplay(context, observerRegistry));
-        return TransactionContextHolder.call(context, () -> {
-            try {
-                Object result = invocation.proceed();
-                complete(context, definition, null);
-                return result;
-            } catch (Throwable failure) {
-                complete(context, definition, failure);
-                throw sneakyThrow(failure);
-            }
-        });
-    }
-
-    private void complete(TransactionContext context, TransactionDefinition definition, Throwable failure) {
-        if (context.isCompleted()) {
-            return;
-        }
-        boolean rollback = context.isRollbackOnly() || (failure != null && shouldRollback(failure, definition));
-        if (rollback) {
-            rollbackTransaction(context);
-        } else {
-            commitTransaction(context, definition);
-        }
-    }
-
-    private void commitTransaction(TransactionContext context, TransactionDefinition definition) {
-        context.triggerBeforeCommit(definition.readOnly());
-        context.triggerBeforeCompletion();
-        try {
-            transactionManager.commit(context);
-        } catch (RuntimeException ex) {
-            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
-            context.markCompleted(TransactionCallback.CompletionStatus.UNKNOWN);
-            throw ex;
-        }
-        context.triggerAfterCommit();
-        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.COMMITTED);
-        context.markCompleted(TransactionCallback.CompletionStatus.COMMITTED);
-    }
-
-    private void rollbackTransaction(TransactionContext context) {
-        context.triggerBeforeCompletion();
-        try {
-            transactionManager.rollback(context);
-        } catch (RuntimeException ex) {
-            context.triggerAfterCompletion(TransactionCallback.CompletionStatus.UNKNOWN);
-            context.markCompleted(TransactionCallback.CompletionStatus.UNKNOWN);
-            throw ex;
-        }
-        context.triggerAfterCompletion(TransactionCallback.CompletionStatus.ROLLED_BACK);
-        context.markCompleted(TransactionCallback.CompletionStatus.ROLLED_BACK);
-    }
-
     // --- definition lookup ---
-
-    private boolean shouldRollback(Throwable failure, TransactionDefinition definition) {
-        Throwable candidate = failure;
-        while (candidate.getCause() != null
-                && (candidate instanceof InvocationTargetException || candidate instanceof ExecutionException)) {
-            candidate = candidate.getCause();
-        }
-        for (Class<? extends Throwable> type : definition.dontRollbackOn()) {
-            if (type.isAssignableFrom(candidate.getClass())) {
-                return false;
-            }
-        }
-        for (Class<? extends Throwable> type : definition.rollbackOn()) {
-            if (type.isAssignableFrom(candidate.getClass())) {
-                return true;
-            }
-        }
-        return candidate instanceof RuntimeException || candidate instanceof Error;
-    }
 
     private TransactionDefinition resolve(InvocationContext context) {
         Method method = context.getMethod();
