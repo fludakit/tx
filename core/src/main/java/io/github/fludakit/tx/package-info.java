@@ -57,7 +57,7 @@
  *
  * <h2>Built-in Implementations</h2>
  * <ul>
- *   <li>{@code io.github.fludakit.tx.jdbc.DataSourceTransactionManager} — JDBC transactions</li>
+ *   <li>{@code io.github.fludakit.tx.jdbc.JdbcTransactionManager} — JDBC transactions</li>
  *   <li>{@code io.github.fludakit.tx.jpa.JpaTransactionManager} — JPA transactions with JDBC fallback</li>
  * </ul>
  *
