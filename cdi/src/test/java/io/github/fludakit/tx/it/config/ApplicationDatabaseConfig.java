@@ -3,9 +3,10 @@ package io.github.fludakit.tx.it.config;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import io.github.fludakit.tx.TransactionManager;
-import io.github.fludakit.tx.jdbc.DataSourceTransactionManager;
+import io.github.fludakit.tx.jdbc.JdbcTransactionManager;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
 
+import java.sql.Connection;
 import javax.sql.DataSource;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -46,7 +47,7 @@ public class ApplicationDatabaseConfig {
 
     @Produces
     @ApplicationScoped
-    public TransactionManager<DataSource> transactionManager() {
-        return new DataSourceTransactionManager(underlyingPool);
+    public TransactionManager<Connection> transactionManager() {
+        return new JdbcTransactionManager(underlyingPool);
     }
 }

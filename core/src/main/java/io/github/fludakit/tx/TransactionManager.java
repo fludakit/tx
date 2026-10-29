@@ -34,8 +34,8 @@ import io.github.fludakit.tx.support.TransactionContext;
  *
  * <h2>Built-in Implementations</h2>
  * <ul>
- *   <li>{@link io.github.fludakit.tx.jdbc.DataSourceTransactionManager} —
- *       {@code TransactionManager<DataSource>}</li>
+ *   <li>{@link io.github.fludakit.tx.jdbc.JdbcTransactionManager} —
+ *       {@code TransactionManager<Connection>}</li>
  *   <li>{@link io.github.fludakit.tx.jpa.JpaTransactionManager} —
  *       {@code TransactionManager<EntityManager>}</li>
  * </ul>

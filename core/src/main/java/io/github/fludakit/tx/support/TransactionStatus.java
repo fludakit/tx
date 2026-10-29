@@ -42,7 +42,7 @@ public final class TransactionStatus {
     private final boolean readOnly;
     private final boolean newTransaction;
     private final TransactionSavepointManager savepointManager;
-    private State state = State.ACTIVE;
+    private volatile State state = State.ACTIVE;
     private volatile boolean rollbackOnly;
 
     private TransactionStatus(boolean readOnly, boolean newTransaction, TransactionSavepointManager savepointManager) {
@@ -88,6 +88,10 @@ public final class TransactionStatus {
         Objects.requireNonNull(state, "state must not be null");
         if (state == State.ACTIVE) {
             throw new IllegalArgumentException("ACTIVE is not a completion state");
+        }
+        if (this.state != State.ACTIVE) {
+            throw new IllegalStateException(
+                    "Transaction is already completed - do not call commit or rollback more than once per transaction");
         }
         this.state = state;
     }

@@ -68,7 +68,6 @@ class TransactionAwareDataSourceProxyTest {
         closedTxConnection.close();
 
         TransactionContext completed = new TransactionContext(true);
-        completed.bindResource(Connection.class, closedTxConnection);
         completed.markCompleted(TransactionCallback.CompletionStatus.COMMITTED);
         // simulate a leftover binding on a pooled thread: the context stays bound after completion
         TransactionContextHolder.call(completed, () -> {

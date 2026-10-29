@@ -17,13 +17,12 @@ import java.util.Objects;
  *
  * <h2>Usage Example</h2>
  * <pre>{@code
- * TransactionManager<DataSource> txManager = new DataSourceTransactionManager(dataSource);
- * TransactionalOperations<DataSource> txOps = new DefaultTransactionalOperations<>(txManager);
+ * TransactionManager<Connection> txManager = new JdbcTransactionManager(dataSource);
+ * TransactionalOperations<Connection> txOps = new DefaultTransactionalOperations<>(txManager);
  *
- * List<User> users = txOps.execute(ds -> {
- *     try (Connection conn = ds.getConnection()) {   // joins the active transaction
- *         // ... JDBC operations ...
- *     }
+ * List<User> users = txOps.execute(conn -> {
+ *     // conn is the transactional Connection bound to the active transaction
+ *     // ... JDBC operations ...
  * });
  * }</pre>
  *

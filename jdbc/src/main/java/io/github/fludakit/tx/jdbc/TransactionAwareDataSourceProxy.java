@@ -25,7 +25,7 @@ import javax.sql.DataSource;
  * a transaction it delegates straight to the pool.</p>
  *
  * <p>The delegate must be the <em>same</em> raw {@code DataSource} instance that the
- * {@link DataSourceTransactionManager} uses as its bind key.</p>
+ * {@link JdbcTransactionManager} uses as its bind key.</p>
  */
 public class TransactionAwareDataSourceProxy implements DataSource {
 
@@ -57,38 +57,40 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection() throws SQLException {
         TransactionContext ctx = TransactionContextHolder.get();
         if (ctx != null && ctx.isActualTransactionActive()) {
-            if (ctx.isCompleted()) {
-                // a completed context still bound to the thread (a leftover binding on a pooled
-                // thread) must not hand out its closed connection — fall through to the pool
-                LOG.warning("Ignoring a completed transaction context bound to the current thread");
-            } else {
-                Connection txConnection = ctx.getResource(Connection.class);
-                if (txConnection == null) {
-                    txConnection = joinTransaction();
-                }
-                return closeSuppressingProxy(txConnection);
+            Connection txConnection = ctx.getResource(Connection.class);
+            if (txConnection == null) {
+                txConnection = joinTransaction();
             }
+            return closeSuppressingProxy(txConnection);
         }
         return delegate.getConnection();
     }
 
     private Connection joinTransaction() throws SQLException {
+        TransactionContext ctx = TransactionContextHolder.get();
         Connection connection = delegate.getConnection();
-        boolean bound = false;
         try {
             connection.setAutoCommit(false);
-            TransactionContextHolder.get().bindResource(Connection.class, connection);
-            TransactionContextHolder.get().registerCallback(new ConnectionJoining(connection));
-            bound = true;
-            return connection;
-        } finally {
-            if (!bound) {
+            Object bound = ctx.bindResourceIfAbsent(Connection.class, connection);
+            if (bound != null) {
+                // lost the join race — another thread already bound a connection to this
+                // transaction; use the winner's connection and release ours
                 try {
                     connection.close();
                 } catch (SQLException ex) {
-                    LOG.log(Level.WARNING, "Failed to close connection after failed join", ex);
+                    LOG.log(Level.WARNING, "Failed to close connection after losing transaction join", ex);
                 }
+                return (Connection) bound;
             }
+            ctx.registerCallback(new ConnectionJoining(connection));
+            return connection;
+        } catch (RuntimeException | SQLException e) {
+            try {
+                connection.close();
+            } catch (SQLException ex) {
+                LOG.log(Level.WARNING, "Failed to close connection after failed join", ex);
+            }
+            throw e;
         }
     }
 

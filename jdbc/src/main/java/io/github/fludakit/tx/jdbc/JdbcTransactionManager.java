@@ -7,6 +7,7 @@ import io.github.fludakit.tx.TransactionSavepoint;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.support.TransactionCallback;
 import io.github.fludakit.tx.support.TransactionContext;
+import io.github.fludakit.tx.support.TransactionContextHolder;
 import io.github.fludakit.tx.support.TransactionSavepointManager;
 import io.github.fludakit.tx.support.TransactionStatus;
 
@@ -24,34 +25,41 @@ import javax.sql.DataSource;
  * <p>Constructed from the raw {@code DataSource} (the connection pool). {@code getTransaction} opens
  * a connection, disables auto-commit, binds it to the returned {@link TransactionContext} under
  * {@code Connection.class}, and registers a callback that releases the connection on completion.
- * {@link #getResource(TransactionContext)} hands callers a transaction-aware {@code DataSource}
- * view whose {@code getConnection()} returns that bound connection (suppressing {@code close()})
- * so plain JDBC code joins the transaction transparently — also outside any transaction, where
- * it simply delegates to the pool.</p>
+ * {@link #getResource()} hands callers the transaction-bound {@link Connection} for the current
+ * transaction, so plain JDBC code running inside {@code execute()} receives it directly. Outside
+ * any transaction, {@link #getResource()} returns {@code null}. Use {@link #getDataSource()} for
+ * the raw pool or {@link TransactionAwareDataSourceProxy} for DataSource-based code that joins
+ * via {@code getConnection()}.</p>
  */
-public class DataSourceTransactionManager implements TransactionManager<DataSource> {
+public class JdbcTransactionManager implements TransactionManager<Connection> {
 
-    private static final Logger LOG = Logger.getLogger(DataSourceTransactionManager.class.getName());
+    private static final Logger LOG = Logger.getLogger(JdbcTransactionManager.class.getName());
 
-    private final DataSource dataSource;
-    private final TransactionAwareDataSourceProxy awareDataSource;
+    private final DataSource rawDataSource;
+    private final TransactionAwareDataSourceProxy dataSourceProxy;
 
     private static final String SAVEPOINT_PREFIX = "fluda_sp_";
 
     private final AtomicInteger savepointCounter = new AtomicInteger();
 
-    public DataSourceTransactionManager(DataSource dataSource) {
-        this.dataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
-        this.awareDataSource = new TransactionAwareDataSourceProxy(this.dataSource);
+    public JdbcTransactionManager(DataSource dataSource) {
+        this.rawDataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
+        this.dataSourceProxy = new TransactionAwareDataSourceProxy(this.rawDataSource);
     }
 
     public DataSource getDataSource() {
-        return dataSource;
+        return rawDataSource;
     }
 
     @Override
-    public DataSource getResource() {
-        return awareDataSource;
+    public Connection getResource() {
+        TransactionContext ctx = TransactionContextHolder.get();
+        if (ctx == null) {
+            return null;
+        }
+        // the Connection bound to the active transaction context — plain JDBC code running
+        // inside execute() receives this directly; code outside any transaction gets null
+        return ctx.getResource(Connection.class);
     }
 
     /**
@@ -99,7 +107,7 @@ public class DataSourceTransactionManager implements TransactionManager<DataSour
     public TransactionContext getTransaction(TransactionDefinition definition) {
         Connection connection;
         try {
-            connection = dataSource.getConnection();
+            connection = rawDataSource.getConnection();
         } catch (SQLException ex) {
             throw new TransactionSystemException("Could not open JDBC connection for transaction", ex);
         }

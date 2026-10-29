@@ -80,7 +80,6 @@
                             <goal>add-module-info</goal>
                         </goals>
                         <configuration>
-                            <multiRelease>true</multiRelease>
                             <jdepsExtraArgs>
                                 <arg>--multi-release</arg>
                                 <arg>25</arg>
