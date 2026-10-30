@@ -16,10 +16,10 @@ import java.util.Objects;
 /**
  * The unified transaction execution template.
  *
- * <p>Both transaction front-ends — {@link io.github.fludakit.tx.support.DefaultTransactionalOperations}
- * (programmatic) and {@link io.github.fludakit.tx.cdi.TransactionalInterceptor} (declarative
- * {@code @Transactional}) — delegate to this template for propagation and lifecycle. The template
- * owns the begin/execute/complete state machine so any future lifecycle change is made once.</p>
+ * <p>Both transaction front-ends — {@link DefaultTransactionalOperations} (programmatic) and
+ * the CDI {@code TransactionalInterceptor} (declarative {@code @Transactional}) — delegate to
+ * this template for propagation and lifecycle. The template owns the begin/execute/complete
+ * state machine so any future lifecycle change is made once.</p>
  *
  * <p>Lifecycle per transaction:</p>
  * <ol>
@@ -41,7 +41,6 @@ import java.util.Objects;
  * @see RollbackDecisionStrategy
  * @see CallbackRegistrar
  * @see DefaultTransactionalOperations
- * @see io.github.fludakit.tx.cdi.TransactionalInterceptor
  */
 public class TransactionTemplate<T> {
 

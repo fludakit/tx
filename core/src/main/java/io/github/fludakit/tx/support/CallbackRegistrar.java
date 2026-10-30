@@ -4,10 +4,9 @@ package io.github.fludakit.tx.support;
  * Callback-registrar hook for front-ends that need to register transaction lifecycle callbacks
  * when a new transaction begins.
  *
- * <p>The {@link TransactionalInterceptor} uses this to register a
- * {@link io.github.fludakit.tx.cdi.TransactionEventReplay} callback on every new transaction,
- * while {@link DefaultTransactionalOperations} uses a no-op registrar (its callbacks come from
- * the {@link TransactionManager} itself).</p>
+ * <p>The {@code TransactionalInterceptor} uses this to register a {@code TransactionEventReplay}
+ * callback on every new transaction, while {@link DefaultTransactionalOperations} uses a no-op
+ * registrar (its callbacks come from the {@link io.github.fludakit.tx.TransactionManager} itself).</p>
  */
 @FunctionalInterface
 public interface CallbackRegistrar {

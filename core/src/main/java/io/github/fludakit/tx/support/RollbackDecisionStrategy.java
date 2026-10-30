@@ -14,9 +14,7 @@ import io.github.fludakit.tx.TransactionDefinition;
  *       {@code TransactionalInterceptor})</li>
  * </ul>
  *
- * @param failure the failure thrown by the unit of work, or {@code null} if it completed normally
- * @param definition the transaction definition carrying rollback rules
- * @return {@code true} if the transaction should be rolled back
+ * @see TransactionTemplate
  */
 @FunctionalInterface
 public interface RollbackDecisionStrategy {
@@ -64,5 +62,13 @@ public interface RollbackDecisionStrategy {
         };
     }
 
+    /**
+     * Decide whether a failed execution should roll back.
+     *
+     * @param failure    the failure thrown by the unit of work, or {@code null} if it completed
+     *                   normally
+     * @param definition the transaction definition carrying the rollback rules
+     * @return {@code true} if the transaction should be rolled back
+     */
     boolean shouldRollback(Throwable failure, TransactionDefinition definition);
 }
