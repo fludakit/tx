@@ -10,8 +10,8 @@ import io.github.fludakit.tx.support.TransactionContext;
  * that resource to callers through {@link #getResource(TransactionContext)} — a JDBC manager
  * exposes an aware {@code DataSource} view (its {@code getConnection()} joins the active
  * transaction), a JPA manager exposes the bound {@code EntityManager}. The manager does not
- * interpret propagation rules: the {@link io.github.fludakit.tx.cdi.TransactionalInterceptor}
- * resolves {@code TxType} and only asks the manager to
+ * interpret propagation rules: {@link io.github.fludakit.tx.support.TransactionTemplate}
+ * dispatches on {@code TxType} and only asks the manager to
  * {@link #getTransaction(TransactionDefinition) start} a new transaction when one is needed.</p>
  *
  * <p>The {@link TransactionContext} returned by {@code getTransaction} is the single handle for the
