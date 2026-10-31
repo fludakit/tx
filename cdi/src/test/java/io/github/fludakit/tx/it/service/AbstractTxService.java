@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.it.service;
 
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.TransactionStatus;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import jakarta.transaction.Transactional;
 
@@ -12,7 +13,7 @@ import jakarta.transaction.Transactional;
 public abstract class AbstractTxService {
 
     public boolean active() {
-        var ctx = TransactionContextHolder.get();
-        return ctx != null && ctx.isActualTransactionActive();
+        TransactionStatus<?> status = TransactionStatusHolder.get();
+        return status != null && status.isActualTransactionActive();
     }
 }

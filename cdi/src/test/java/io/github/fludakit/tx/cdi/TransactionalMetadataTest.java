@@ -1,5 +1,6 @@
 package io.github.fludakit.tx.cdi;
 
+import io.github.fludakit.tx.Propagation;
 import io.github.fludakit.tx.TransactionDefinition;
 import org.junit.jupiter.api.Test;
 
@@ -110,7 +111,7 @@ class TransactionalMetadataTest {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(TypeLevel.class);
 
         assertTrue(metadata.isTransactional());
-        assertEquals(TxType.REQUIRED, metadata.definitionFor(method(TypeLevel.class, "work")).propagation());
+        assertEquals(Propagation.REQUIRED, metadata.definitionFor(method(TypeLevel.class, "work")).propagation());
     }
 
     @Test
@@ -118,22 +119,22 @@ class TransactionalMetadataTest {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(InheritsTypeLevel.class);
 
         assertTrue(metadata.isTransactional());
-        assertEquals(TxType.REQUIRED, metadata.definitionFor(method(InheritsTypeLevel.class, "work")).propagation());
+        assertEquals(Propagation.REQUIRED, metadata.definitionFor(method(InheritsTypeLevel.class, "work")).propagation());
     }
 
     @Test
     void nearestTypeLevelAnnotationWins() {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(AnnotatedSub.class);
 
-        assertEquals(TxType.MANDATORY, metadata.definitionFor(method(AnnotatedSub.class, "work")).propagation());
+        assertEquals(Propagation.MANDATORY, metadata.definitionFor(method(AnnotatedSub.class, "work")).propagation());
     }
 
     @Test
     void methodLevelAnnotationOverridesTypeLevel() {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(MethodOverridesTypeLevel.class);
 
-        assertEquals(TxType.NOT_SUPPORTED, metadata.definitionFor(method(MethodOverridesTypeLevel.class, "work")).propagation());
-        assertEquals(TxType.SUPPORTS, metadata.definitionFor(method(MethodOverridesTypeLevel.class, "inherited")).propagation());
+        assertEquals(Propagation.NOT_SUPPORTED, metadata.definitionFor(method(MethodOverridesTypeLevel.class, "work")).propagation());
+        assertEquals(Propagation.SUPPORTS, metadata.definitionFor(method(MethodOverridesTypeLevel.class, "inherited")).propagation());
     }
 
     @Test
@@ -141,7 +142,7 @@ class TransactionalMetadataTest {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(ImplementsAnnotatedApi.class);
 
         assertTrue(metadata.isTransactional());
-        assertEquals(TxType.MANDATORY, metadata.definitionFor(method(ImplementsAnnotatedApi.class, "work")).propagation());
+        assertEquals(Propagation.MANDATORY, metadata.definitionFor(method(ImplementsAnnotatedApi.class, "work")).propagation());
     }
 
     @Test
@@ -149,14 +150,14 @@ class TransactionalMetadataTest {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(ImplementsTypeLevelApi.class);
 
         assertTrue(metadata.isTransactional());
-        assertEquals(TxType.REQUIRES_NEW, metadata.definitionFor(method(ImplementsTypeLevelApi.class, "work")).propagation());
+        assertEquals(Propagation.REQUIRES_NEW, metadata.definitionFor(method(ImplementsTypeLevelApi.class, "work")).propagation());
     }
 
     @Test
     void resolvesAnnotationsFromSuperInterfaces() {
         TransactionalMetadata metadata = TransactionalMetadata.forClass(ImplementsSubApi.class);
 
-        assertEquals(TxType.NEVER, metadata.definitionFor(method(ImplementsSubApi.class, "deep")).propagation());
+        assertEquals(Propagation.NEVER, metadata.definitionFor(method(ImplementsSubApi.class, "deep")).propagation());
     }
 
     // --- registry lookup ---
@@ -171,7 +172,7 @@ class TransactionalMetadataTest {
                 method(InheritsTypeLevel.class, "work"));
 
         assertNotNull(definition);
-        assertEquals(TxType.REQUIRED, definition.propagation());
+        assertEquals(Propagation.REQUIRED, definition.propagation());
     }
 
     @Test
@@ -183,8 +184,8 @@ class TransactionalMetadataTest {
         TransactionDefinition second = registry.definitionFor(ImplementsAnnotatedApi.class,
                 method(ImplementsAnnotatedApi.class, "work"));
 
-        assertEquals(TxType.MANDATORY, first.propagation());
-        assertEquals(TxType.MANDATORY, second.propagation());
+        assertEquals(Propagation.MANDATORY, first.propagation());
+        assertEquals(Propagation.MANDATORY, second.propagation());
     }
 
     @Test

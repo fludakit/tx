@@ -2,8 +2,6 @@ package io.github.fludakit.tx.cdi;
 
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionManager;
-import io.github.fludakit.tx.support.RollbackDecisionStrategy;
-import io.github.fludakit.tx.support.TransactionTemplate;
 
 import java.lang.reflect.Method;
 
@@ -17,7 +15,7 @@ import jakarta.transaction.Transactional;
 /**
  * CDI interceptor honoring {@code jakarta.transaction.Transactional}: resolves the
  * {@link TransactionDefinition} for the intercepted method and delegates the whole
- * propagation/lifecycle state machine to {@link TransactionTemplate}.
+ * propagation/lifecycle state machine to {@link TransactionManager#execute}.
  *
  * <p>Bound to the internal {@link TransactionalBinding} marker (added by
  * {@link TransactionalCdiExtension} to every {@code @Transactional} type) so a single interceptor
@@ -25,20 +23,15 @@ import jakarta.transaction.Transactional;
  * resolution happens once at deployment in the extension; this interceptor only looks the
  * precomputed definition up.</p>
  *
- * <p>The execution lifecycle (propagation dispatch, begin, bind, run, complete, cleanup) is owned
- * by {@link TransactionTemplate} — the same template {@code DefaultTransactionalOperations} uses,
- * so the programmatic and declarative front-ends can never drift apart. This class contributes
- * only the two front-end specific pieces:</p>
- * <ul>
- *   <li>a {@link RollbackDecisionStrategy#classified()} strategy, so rollback follows the
- *       definition's {@code rollbackOn}/{@code dontRollbackOn} rules per the spec</li>
- *   <li>a callback registrar that installs a {@link TransactionEventReplay} on every new
- *       transaction, so buffered CDI events reach transactional observers</li>
- * </ul>
+ * <p>The programmatic {@code execute} uses the same manager, so the two front-ends share one
+ * lifecycle, one propagation table, and one set of rollback rules — this class contributes only
+ * the declarative-specific piece: it installs a {@link TransactionEventReplay} on every
+ * transaction it begins, so buffered CDI events reach the transactional observers that were
+ * vetoed at deployment.</p>
  *
- * <p>The template is created lazily on first use because Weld injects {@link TransactionManager}
- * and {@link TransactionalObserverRegistry} after construction, so they are unavailable in a
- * field initializer.</p>
+ * <p>The replay is registered only for a status this call <em>began</em>. A participant
+ * ({@code REQUIRED}, {@code MANDATORY}, {@code SUPPORTS}) already has one at the boundary that
+ * owns the transaction, and registering another would replay every event twice.</p>
  */
 @Interceptor
 @TransactionalBinding
@@ -54,26 +47,6 @@ public class TransactionalInterceptor {
     @Inject
     private TransactionalMetadataRegistry metadata;
 
-    private volatile TransactionTemplate<Object> template;
-
-    @SuppressWarnings("unchecked")
-    private TransactionTemplate<Object> template() {
-        TransactionTemplate<Object> current = template;
-        if (current == null) {
-            synchronized (this) {
-                current = template;
-                if (current == null) {
-                    current = new TransactionTemplate<>((TransactionManager<Object>) transactionManager,
-                            RollbackDecisionStrategy.classified(),
-                            context -> context.registerCallback(
-                                    new TransactionEventReplay(context, observerRegistry)));
-                    template = current;
-                }
-            }
-        }
-        return current;
-    }
-
     @AroundInvoke
     public Object manageTransaction(InvocationContext context) throws Exception {
         TransactionDefinition definition = resolve(context);
@@ -82,7 +55,12 @@ public class TransactionalInterceptor {
         }
         // the resource/status handed to the action are irrelevant here: the intercepted method
         // resolves the ambient transaction itself
-        return template().execute(definition, (resource, status) -> context.proceed());
+        return transactionManager.execute(definition, (resource, status) -> {
+            if (status.isNewTransaction()) {
+                status.registerSynchronization(new TransactionEventReplay(status, observerRegistry));
+            }
+            return context.proceed();
+        });
     }
 
     // --- definition lookup ---

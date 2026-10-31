@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.it.service;
 
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,22 +23,22 @@ public class OrderProcessingService {
     private IsolatedChildService isolatedChildService;
 
     /**
-     * Scenario A: transaction context is visible inside virtual-thread subtasks.
+     * Scenario A: the transaction status is visible inside virtual-thread subtasks.
      */
     @Transactional(Transactional.TxType.REQUIRED)
     public boolean processParallelInTransaction() throws Exception {
-        if (!TransactionContextHolder.isBound()) {
+        if (!TransactionStatusHolder.isBound()) {
             return false;
         }
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var taskA = executor.submit(() -> {
                 try (Connection conn = dataSource.getConnection()) {
-                    return TransactionContextHolder.isBound();
+                    return TransactionStatusHolder.isBound();
                 }
             });
             var taskB = executor.submit(() -> {
                 try (Connection conn = dataSource.getConnection()) {
-                    return TransactionContextHolder.isBound();
+                    return TransactionStatusHolder.isBound();
                 }
             });
             return taskA.get() && taskB.get();

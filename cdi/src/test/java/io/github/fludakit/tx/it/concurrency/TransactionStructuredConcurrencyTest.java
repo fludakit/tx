@@ -5,7 +5,7 @@ import io.github.fludakit.tx.cdi.TransactionalInterceptor;
 import io.github.fludakit.tx.it.config.ApplicationDatabaseConfig;
 import io.github.fludakit.tx.it.service.IsolatedChildService;
 import io.github.fludakit.tx.it.service.OrderProcessingService;
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
@@ -36,12 +36,12 @@ class TransactionStructuredConcurrencyTest {
 
     @Test
     @EnabledForJreRange(min = JRE.JAVA_21, max = JRE.JAVA_21)
-    void verifyTransactionContextInheritedByVirtualSubtasks() throws Exception {
-        assertFalse(TransactionContextHolder.isBound());
+    void verifyTransactionStatusInheritedByVirtualSubtasks() throws Exception {
+        assertFalse(TransactionStatusHolder.isBound());
 
         boolean inheritanceResult = orderService.processParallelInTransaction();
 
-        assertTrue(inheritanceResult, "Concurrent subtasks must inherit the transaction context.");
-        assertFalse(TransactionContextHolder.isBound(), "Context must dissolve on exit.");
+        assertTrue(inheritanceResult, "Concurrent subtasks must inherit the transaction status.");
+        assertFalse(TransactionStatusHolder.isBound(), "The binding must dissolve on exit.");
     }
 }

@@ -1,7 +1,6 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.TransactionStatus;
 
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.inject.Produces;
@@ -65,7 +64,7 @@ import java.lang.reflect.Proxy;
  * <h2>Scope</h2>
  * <p>The produced {@code EntityManager} uses {@link Dependent} scope. Each injection point
  * receives a CDI proxy that delegates to the transaction-bound EntityManager from
- * {@link TransactionContext}. Within a single transaction, all injection points resolve
+ * {@link TransactionStatus}. Within a single transaction, all injection points resolve
  * to the same underlying EntityManager instance.</p>
  *
  * <h2>Lazy Resolution</h2>
@@ -84,7 +83,7 @@ public class EntityManagerProducer {
      *
      * <p>The returned proxy defers EntityManager lookup until each method invocation.
      * When a method is called, it retrieves the EntityManager from the active
-     * {@link TransactionContext} via {@link JpaHelper#currentEntityManager()}.
+     * {@link TransactionStatus} via {@link JpaHelper#currentEntityManager()}.
      * If no transaction is active, throws {@link IllegalStateException}.</p>
      *
      * @return a proxy that resolves to the transaction-scoped EntityManager on each use
