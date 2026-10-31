@@ -73,7 +73,7 @@ class JpaTransactionManagerTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        manager = new JpaTransactionManager(emf, dataSource);
+        manager = new JpaTransactionManager(emf);
         try (Connection connection = dataSource.getConnection();
              Statement statement = connection.createStatement()) {
             statement.execute("DROP TABLE IF EXISTS test_items");
@@ -224,7 +224,7 @@ class JpaTransactionManagerTest {
             created.set(entityManager);
             throw new IllegalStateException("no connection for you");
         };
-        JpaTransactionManager failing = new JpaTransactionManager(emf, dataSource, throwing);
+        JpaTransactionManager failing = new JpaTransactionManager(emf, throwing);
 
         assertThrows(TransactionSystemException.class, () ->
                 failing.execute((entityManager, status) -> "never"));
@@ -238,7 +238,7 @@ class JpaTransactionManagerTest {
     void customConnectionExtractor_isHonored() throws Exception {
         try (Connection custom = dataSource.getConnection()) {
             JpaTransactionManager customizing =
-                    new JpaTransactionManager(emf, dataSource, entityManager -> custom);
+                    new JpaTransactionManager(emf, entityManager -> custom);
 
             manager = customizing;
             customizing.execute((entityManager, status) -> {

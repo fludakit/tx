@@ -64,9 +64,23 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         return closeSuppressingProxy(connection);
     }
 
+    /**
+     * As {@link #getConnection()}, ignoring the supplied credentials while a transaction is
+     * running — the transaction's connection comes from the pool with the pool's credentials.
+     * Outside a transaction the request goes straight to the delegate, credentials included.
+     */
     @Override
     public Connection getConnection(String username, String password) throws SQLException {
-        return getConnection();
+        TransactionStatus<?> status = activeStatus();
+        if (status == null) {
+            // no transaction to join: the credentials belong to the pool
+            return delegate.getConnection(username, password);
+        }
+        Connection connection = resolveConnection(status);
+        if (connection == null) {
+            connection = joinTransaction(status);
+        }
+        return closeSuppressingProxy(connection);
     }
 
     private static TransactionStatus<?> activeStatus() {
@@ -91,22 +105,14 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             Connection bound = status.putAttributeIfAbsent(Connection.class, connection);
             if (bound != null) {
                 // another participant bound a connection first - use the winner's and release ours
-                closeQuietly(connection, "closing a connection that lost the transaction join");
+                JdbcConnections.close(connection);
                 return bound;
             }
             status.registerSynchronization(new ConnectionJoining(connection));
             return connection;
         } catch (RuntimeException | SQLException ex) {
-            closeQuietly(connection, "closing a connection that failed to join the transaction");
+            JdbcConnections.close(connection);
             throw ex;
-        }
-    }
-
-    private static void closeQuietly(Connection connection, String what) {
-        try {
-            connection.close();
-        } catch (SQLException ex) {
-            LOG.log(Level.WARNING, "Failed " + what, ex);
         }
     }
 
@@ -188,13 +194,10 @@ public class TransactionAwareDataSourceProxy implements DataSource {
                 if (status == Status.ROLLED_BACK && !connection.isClosed()) {
                     connection.rollback();
                 }
-                if (!connection.isClosed() && !connection.getAutoCommit()) {
-                    connection.setAutoCommit(true);
-                }
             } catch (SQLException ex) {
                 LOG.log(Level.WARNING, "Failed to complete the joined JDBC connection", ex);
             } finally {
-                closeQuietly(connection, "releasing a joined JDBC connection");
+                JdbcConnections.release(connection, false);
             }
         }
     }

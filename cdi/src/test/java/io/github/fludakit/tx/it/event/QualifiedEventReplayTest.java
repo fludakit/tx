@@ -2,8 +2,6 @@ package io.github.fludakit.tx.it.event;
 
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
-import io.github.fludakit.tx.support.AbstractTransactionOperations;
-import io.github.fludakit.tx.support.DefaultTransactionStatus;
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
@@ -31,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  * Transactional observers must honor event qualifiers: a qualified deferred observer receives
  * only the events fired with its qualifier, while an unqualified observer on the same payload
- * type receives both. The capture used to be a catch-all Object observer that recorded no
- * qualifiers, so every deferred observer received every event of a matching type.
+ * type receives both. Delivery is deferred, but CDI still performs the matching — the
+ * replacement observer keeps the original observer's declared type and qualifiers.
  */
 @ExtendWith(WeldJunit5Extension.class)
 class QualifiedEventReplayTest {
@@ -98,24 +96,6 @@ class QualifiedEventReplayTest {
 
         class Literal extends jakarta.enterprise.util.AnnotationLiteral<Admin> implements Admin {
             public static final Literal INSTANCE = new Literal();
-        }
-    }
-
-    @Singleton
-    public static class StubTransactionManager extends AbstractTransactionOperations<String> {
-
-        @Override
-        protected void doBegin(DefaultTransactionStatus<String> status) {
-            bindResource(status, "stub-resource");
-        }
-
-        @Override
-        protected void doCommit(DefaultTransactionStatus<String> status) {
-            // phases are triggered by the interceptor around this call; nothing to do here
-        }
-
-        @Override
-        protected void doRollback(DefaultTransactionStatus<String> status) {
         }
     }
 }

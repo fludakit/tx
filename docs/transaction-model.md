@@ -44,7 +44,7 @@ Consequences:
 | `io.github.fludakit.tx.support` | Runtime: the template (`AbstractTransactionOperations`), the status implementation, the scope holder | public but internal-facing |
 | `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `TransactionAwareDataSourceProxy`    | public          |
 | `io.github.fludakit.tx.jpa`  | `JpaTransactionManager`, `JpaHelper`, `EntityManagerProducer`   | public          |
-| `io.github.fludakit.tx.cdi`  | `@Transactional` interceptor, `@TransactionScoped` context, transactional event replay, metadata registry | public |
+| `io.github.fludakit.tx.cdi`  | `@Transactional` interceptor, `@TransactionScoped` context, transactional event dispatch, metadata registry | public |
 
 Dependencies point one way: `jdbc`, `jpa`, `cdi` → `core`. `core` knows nothing about JDBC,
 JPA, or CDI (the `jakarta.enterprise` dependency is `provided` and only used for
@@ -90,7 +90,7 @@ getAttribute(Class<A>) / putAttributeIfAbsent(Class<A>, A)   // typed attribute 
 ```
 
 The typed attribute slots exist for exactly two consumers: `@TransactionScoped` bean stores and
-the CDI event buffer. They are not a general-purpose map.
+the CDI transactional event dispatcher. They are not a general-purpose map.
 
 ### `TransactionManager<T>`
 
@@ -213,6 +213,41 @@ running (the outer one), so it fires once, at the real boundary. A synchronizati
 on a nested section is attached to the outer transaction as well: a savepoint section has no
 completion of its own.
 
+## Transactional CDI events
+
+Standard CDI transactional observers — `@Observes(during = TransactionPhase.AFTER_SUCCESS)`, and
+friends — are the public surface; no annotation of our own is involved. The container drives
+those observers itself only for JTA transactions, and the transaction model here is
+resource-local, so the CDI module bridges the gap:
+
+1. At deployment, `TransactionalCdiExtension` vetoes every observer whose phase is not
+   `IN_PROGRESS` and registers one replacement per observer. The replacement keeps the original
+   observed type and qualifier set — so CDI still does the type and qualifier matching — and
+   reports its own phase as `IN_PROGRESS`.
+2. When an event reaches a replacement, the payload is handed to the transaction's
+   `TransactionEventDispatcher` together with the observer and its declared phase.
+3. The dispatcher is a `TransactionSynchronization` that holds the payloads and delivers them at
+   the matching callback:
+
+| CDI phase            | Delivered from          | When                          |
+|----------------------|-------------------------|-------------------------------|
+| `BEFORE_COMPLETION`  | `beforeCompletion()`    | before commit or rollback     |
+| `AFTER_SUCCESS`      | `afterCommit()`         | after the resource committed  |
+| `AFTER_FAILURE`      | `afterCompletion()`     | after a rollback              |
+| `AFTER_COMPLETION`   | `afterCompletion()`     | after either outcome          |
+
+The dispatcher installs itself on the first event of the transaction, bound to the status as a
+typed attribute, rather than being installed by the interceptor. That is what makes transactional
+observers work for **every** boundary: the `@Transactional` interceptor (`5. afterCommit()` →
+`afterCompletion(COMMITTED)` in the lifecycle above) and a programmatic
+`manager.execute(...)` call behave identically. A joined participant and a `NESTED` section share
+the attribute and the synchronization registration with the transaction that is actually running,
+so each event is delivered exactly once, at the real boundary.
+
+An event fired with no actual transaction active is dropped: a transactional observer must not run
+without a transaction. A failing observer is logged and neither stops the other observers nor
+changes the transaction's outcome.
+
 ## Exceptions
 
 All failures derive from `TransactionException extends jakarta.transaction.TransactionalException`,
@@ -235,19 +270,34 @@ ends, so a transaction never outlives its boundary, even when a raw thread inher
 
 **jdbc** — `JdbcTransactionManager` opens a `Connection` in `doBegin` (auto-commit off, optional
 read-only), binds it to the status, and registers a synchronization that resets and closes it.
-Savepoints map to JDBC savepoints. `TransactionAwareDataSourceProxy` lets plain
-`dataSource.getConnection()` code join the transaction.
+Savepoints map to JDBC savepoints through the shared `JdbcSavepointManager`, which also tolerates
+drivers that reject `releaseSavepoint`. `TransactionAwareDataSourceProxy` lets plain
+`dataSource.getConnection()` code join the transaction; outside one it delegates to the pool,
+credentials included.
 
 **jpa** — `JpaTransactionManager` creates an `EntityManager`, begins its `EntityTransaction`,
 binds both the `EntityManager` and the underlying `Connection` (so mixed JDBC/JPA code shares
 one transaction), and flushes on commit. Savepoints are JDBC savepoints over the extracted
-connection.
+connection, through the same `JdbcSavepointManager`.
+
+The manager is built from either an existing `EntityManagerFactory`, or — preferred when the
+application owns a pool — from a persistence unit name plus that `DataSource`:
+
+```java
+JpaTransactionManager txManager = new JpaTransactionManager("myPU", dataSource);
+```
+
+The second form creates the factory through `JpaBootstrap`, which passes the `DataSource` as
+`jakarta.persistence.nonJtaDataSource`. Callers never hand over the factory *and* the pool, and
+the persistence unit cannot accidentally connect to a different pool. The manager is
+`AutoCloseable` and closes the factory only when it created it; a factory passed in stays the
+caller's.
 
 **cdi** — the interceptor resolves the precomputed definition and calls
-`manager.execute(definition, ...)`; it contributes only the transactional-event replay, which
-it installs on the status it receives (buffer + synchronization, registered once per
-transaction). `TransactionScopeContext` implements `@TransactionScoped` over the status
-attribute slots.
+`manager.execute(definition, ...)`; everything else is deployment-time wiring. The
+`TransactionEventDispatcher` described above installs itself when the first transactional event is
+fired, so the interceptor carries no event code at all. `TransactionScopeContext` implements
+`@TransactionScoped` over the status attribute slots.
 
 ## Out of scope (on purpose)
 

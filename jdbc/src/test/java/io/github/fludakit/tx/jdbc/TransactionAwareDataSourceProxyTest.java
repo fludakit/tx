@@ -8,10 +8,14 @@ import io.github.fludakit.tx.support.TransactionStatusHolder;
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 
@@ -158,6 +162,33 @@ class TransactionAwareDataSourceProxyTest {
             assertTrue(fresh.isClosed(), "outside an active transaction close must be real");
             return null;
         });
+    }
+
+    @Test
+    void passesCredentialsToTheDelegateWhenNoTransactionIsActive() throws Exception {
+        DataSource dataSource = newDataSource("proxy7");
+        List<String> requested = new ArrayList<>();
+        DataSource recording = (DataSource) Proxy.newProxyInstance(
+                DataSource.class.getClassLoader(),
+                new Class<?>[]{DataSource.class},
+                (proxy, method, args) -> {
+                    if ("getConnection".equals(method.getName()) && args != null) {
+                        requested.add(args[0] + ":" + args[1]);
+                    }
+                    try {
+                        return method.invoke(dataSource, args);
+                    } catch (InvocationTargetException ex) {
+                        throw ex.getCause();
+                    }
+                });
+        DataSource proxy = new TransactionAwareDataSourceProxy(recording);
+
+        try (Connection connection = proxy.getConnection("app", "secret")) {
+            assertNotNull(connection);
+        }
+
+        assertEquals(List.of("app:secret"), requested,
+                "outside a transaction the pool, not the proxy, decides the credentials");
     }
 
     // --- helpers -------------------------------------------------------------

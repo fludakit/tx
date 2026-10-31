@@ -58,6 +58,6 @@ public class JpaTestConfig {
     @Produces
     @ApplicationScoped
     public TransactionManager<EntityManager> transactionManager() {
-        return new JpaTransactionManager(emf, rawPool);
+        return new JpaTransactionManager(emf);
     }
 }

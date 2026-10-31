@@ -1,13 +1,9 @@
 package io.github.fludakit.tx.cdi;
 
-import io.github.fludakit.tx.TransactionStatus;
-import io.github.fludakit.tx.support.TransactionStatusHolder;
-
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -31,13 +27,16 @@ import jakarta.interceptor.Interceptor;
  *       adds the internal {@link TransactionalBinding} to it, so the single
  *       {@link TransactionalInterceptor} matches all six {@code TxType} values without resolving
  *       annotations per invocation.</li>
- *   <li>Vetoes every {@code @Observes(during != IN_PROGRESS)} observer and replays it at the matching
- *       phase through a {@link TransactionalObserverRegistry}.</li>
+ *   <li>Vetoes every {@code @Observes(during != IN_PROGRESS)} observer — a resource-local
+ *       transaction is invisible to the container, so it would never fire them — and registers a
+ *       {@link DeferredTransactionalObserver} in its place. The replacement keeps the original
+ *       type and qualifiers, so CDI still matches the events, and hands them to a
+ *       {@link TransactionEventDispatcher} to be delivered at the declared phase.</li>
  * </ul>
  */
 public class TransactionalCdiExtension implements Extension {
 
-    private final List<CollectedObserver> transactionalObservers = new ArrayList<>();
+    private final List<ObserverMethod<?>> deferredObservers = new ArrayList<>();
     private final Map<Class<?>, TransactionalMetadata> metadata = new LinkedHashMap<>();
 
     public <T> void processAnnotatedType(@Observes ProcessAnnotatedType<T> event) {
@@ -52,9 +51,10 @@ public class TransactionalCdiExtension implements Extension {
 
     public <T, X> void processObserverMethod(@Observes ProcessObserverMethod<T, X> event) {
         ObserverMethod<T> observer = event.getObserverMethod();
-        if (observer.getTransactionPhase() != TransactionPhase.IN_PROGRESS) {
+        TransactionPhase phase = observer.getTransactionPhase();
+        if (phase != TransactionPhase.IN_PROGRESS) {
             event.veto();
-            transactionalObservers.add(new CollectedObserver(observer.getTransactionPhase(), observer));
+            deferredObservers.add(new DeferredTransactionalObserver<>(observer, phase));
         }
     }
 
@@ -64,94 +64,11 @@ public class TransactionalCdiExtension implements Extension {
                 .scope(Singleton.class)
                 .createWith(ctx -> new TransactionalMetadataRegistry(metadata));
 
-        TransactionalObserverRegistry registry = new TransactionalObserverRegistry();
-        for (CollectedObserver collected : transactionalObservers) {
-            registry.register(collected.phase(), collected.observer());
-        }
-
-        event.addBean()
-                .types(TransactionalObserverRegistry.class)
-                .scope(Singleton.class)
-                .createWith(ctx -> registry);
-
         // Register @TransactionScoped context
         event.addContext(new TransactionScopeContext());
 
-        // One capturing observer per distinct (type, qualifiers): CDI fires it only for the
-        // events the vetoed observers of that shape would actually receive, so the buffer records
-        // the payload under that group's key and the replay delivers it to exactly those
-        // observers. The phase is deliberately not part of the key — capture happens at
-        // IN_PROGRESS for every group, so keying by phase would register one capture observer per
-        // phase and buffer each fired event once per phase.
-        Set<TransactionEventBuffer.CaptureKey> captures = new LinkedHashSet<>();
-        for (CollectedObserver collected : transactionalObservers) {
-            ObserverMethod<?> observer = collected.observer();
-            captures.add(captureKey(observer));
-        }
-        for (TransactionEventBuffer.CaptureKey capture : captures) {
-            event.addObserverMethod(new CapturingObserver(capture));
-        }
-    }
-
-    private static TransactionEventBuffer.CaptureKey captureKey(ObserverMethod<?> observer) {
-        return new TransactionEventBuffer.CaptureKey(observer.getObservedType(), observer.getObservedQualifiers());
-    }
-
-    private record CollectedObserver(TransactionPhase phase, ObserverMethod<?> observer) {
-    }
-
-    /**
-     * Captures the events one vetoed-observer group would receive — its declared type and
-     * qualifier set identify the group, so CDI hands it exactly the events those observers
-     * would get, and the buffer files them under the same key for the replay.
-     */
-    private static final class CapturingObserver implements ObserverMethod<Object> {
-
-        private final TransactionEventBuffer.CaptureKey key;
-
-        CapturingObserver(TransactionEventBuffer.CaptureKey key) {
-            this.key = key;
-        }
-
-        @Override
-        public Class<?> getBeanClass() {
-            return TransactionalCdiExtension.class;
-        }
-
-        @Override
-        public Type getObservedType() {
-            return key.observedType();
-        }
-
-        @Override
-        public Set<Annotation> getObservedQualifiers() {
-            return key.qualifiers();
-        }
-
-        @Override
-        public Reception getReception() {
-            return Reception.ALWAYS;
-        }
-
-        @Override
-        public TransactionPhase getTransactionPhase() {
-            return TransactionPhase.IN_PROGRESS;
-        }
-
-        @Override
-        public int getPriority() {
-            return Interceptor.Priority.APPLICATION + 500;
-        }
-
-        @Override
-        public void notify(Object event) {
-            TransactionStatus<?> status = TransactionStatusHolder.get();
-            if (status != null && status.isActualTransactionActive() && !status.isCompleted()) {
-                TransactionEventBuffer buffer = status.getAttribute(TransactionEventBuffer.class);
-                if (buffer != null) {
-                    buffer.add(key, event);
-                }
-            }
-        }
+        // One replacement observer per vetoed observer: CDI keeps doing the type and qualifier
+        // matching, and the dispatcher only owns the timing.
+        deferredObservers.forEach(event::addObserverMethod);
     }
 }
