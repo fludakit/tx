@@ -1,21 +1,15 @@
 package io.github.fludakit.tx.jdbc;
 
-import io.github.fludakit.tx.JdbcSavepoint;
-import io.github.fludakit.tx.NestedTransactionNotSupportedException;
 import io.github.fludakit.tx.SavepointManager;
-import io.github.fludakit.tx.TransactionSavepoint;
 import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.support.AbstractTransactionOperations;
 import io.github.fludakit.tx.support.DefaultTransactionStatus;
+import io.github.fludakit.tx.support.JdbcSavepointManager;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.sql.DataSource;
 
 /**
@@ -39,12 +33,8 @@ import javax.sql.DataSource;
  */
 public class JdbcTransactionManager extends AbstractTransactionOperations<Connection> {
 
-    private static final Logger LOG = Logger.getLogger(JdbcTransactionManager.class.getName());
-    private static final String SAVEPOINT_PREFIX = "fluda_sp_";
-
     private final DataSource rawDataSource;
     private final TransactionAwareDataSourceProxy dataSourceProxy;
-    private final AtomicInteger savepointCounter = new AtomicInteger();
 
     /**
      * Creates a manager over the given pool.
@@ -65,7 +55,7 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
      * A view of the pool whose {@link DataSource#getConnection()} returns the transaction-bound
      * connection and suppresses {@code close()} while a transaction is active.
      */
-    public DataSource getTransactionAwareDataSource() {
+    public TransactionAwareDataSourceProxy getTransactionAwareDataSource() {
         return dataSourceProxy;
     }
 
@@ -87,7 +77,7 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
             }
         } catch (SQLException ex) {
             // nothing is bound to clean this connection up yet, so release it here
-            releaseQuietly(connection, readOnly, ex);
+            JdbcConnections.release(connection, readOnly);
             throw new TransactionSystemException("Could not begin the JDBC transaction", ex);
         }
 
@@ -115,7 +105,7 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
 
     @Override
     protected SavepointManager newSavepointManager(DefaultTransactionStatus<Connection> status) {
-        return new ConnectionSavepointManager(status::getResource);
+        return new JdbcSavepointManager(status::getResource);
     }
 
     private static Connection connected(DefaultTransactionStatus<Connection> status) {
@@ -124,20 +114,6 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
             throw new IllegalStateException("No JDBC connection is bound to the transaction " + status);
         }
         return connection;
-    }
-
-    private static void releaseQuietly(Connection connection, boolean readOnly, SQLException failure) {
-        try {
-            if (!connection.getAutoCommit()) {
-                connection.setAutoCommit(true);
-            }
-            if (readOnly) {
-                connection.setReadOnly(false);
-            }
-            connection.close();
-        } catch (SQLException suppressed) {
-            failure.addSuppressed(suppressed);
-        }
     }
 
     /**
@@ -158,69 +134,7 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
 
         @Override
         public void afterCompletion(Status status) {
-            try {
-                if (!connection.isClosed() && !connection.getAutoCommit()) {
-                    connection.setAutoCommit(true);
-                }
-                if (resetReadOnly && !connection.isClosed()) {
-                    connection.setReadOnly(false);
-                }
-            } catch (SQLException ex) {
-                LOG.log(Level.WARNING, "Failed to reset the JDBC connection before release", ex);
-            } finally {
-                try {
-                    connection.close();
-                } catch (SQLException ex) {
-                    LOG.log(Level.WARNING, "Failed to release the JDBC connection", ex);
-                }
-            }
-        }
-    }
-
-    /** JDBC savepoints over the connection of the transaction this manager belongs to. */
-    private final class ConnectionSavepointManager implements SavepointManager {
-
-        private final Supplier<Connection> connection;
-
-        ConnectionSavepointManager(Supplier<Connection> connection) {
-            this.connection = connection;
-        }
-
-        @Override
-        public TransactionSavepoint createSavepoint() {
-            String name = SAVEPOINT_PREFIX + savepointCounter.incrementAndGet();
-            try {
-                return new JdbcSavepoint(connected().setSavepoint(name), name);
-            } catch (SQLException ex) {
-                throw new TransactionSystemException("Could not create a JDBC savepoint", ex);
-            }
-        }
-
-        @Override
-        public void rollbackToSavepoint(TransactionSavepoint savepoint) {
-            try {
-                connected().rollback(((JdbcSavepoint) savepoint).jdbcSavepoint());
-            } catch (SQLException ex) {
-                throw new TransactionSystemException("Could not roll back to the JDBC savepoint", ex);
-            }
-        }
-
-        @Override
-        public void releaseSavepoint(TransactionSavepoint savepoint) {
-            try {
-                connected().releaseSavepoint(((JdbcSavepoint) savepoint).jdbcSavepoint());
-            } catch (SQLException ex) {
-                throw new TransactionSystemException("Could not release the JDBC savepoint", ex);
-            }
-        }
-
-        private Connection connected() {
-            Connection bound = connection.get();
-            if (bound == null) {
-                throw new NestedTransactionNotSupportedException(
-                        "No JDBC connection is bound to the transaction - savepoints are unavailable");
-            }
-            return bound;
+            JdbcConnections.release(connection, resetReadOnly);
         }
     }
 }

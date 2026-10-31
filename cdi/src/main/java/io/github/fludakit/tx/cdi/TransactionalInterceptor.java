@@ -23,15 +23,10 @@ import jakarta.transaction.Transactional;
  * resolution happens once at deployment in the extension; this interceptor only looks the
  * precomputed definition up.</p>
  *
- * <p>The programmatic {@code execute} uses the same manager, so the two front-ends share one
- * lifecycle, one propagation table, and one set of rollback rules — this class contributes only
- * the declarative-specific piece: it installs a {@link TransactionEventReplay} on every
- * transaction it begins, so buffered CDI events reach the transactional observers that were
- * vetoed at deployment.</p>
- *
- * <p>The replay is registered only for a status this call <em>began</em>. A participant
- * ({@code REQUIRED}, {@code MANDATORY}, {@code SUPPORTS}) already has one at the boundary that
- * owns the transaction, and registering another would replay every event twice.</p>
+ * <p>It contributes nothing else: transactional CDI events are dispatched by
+ * {@link TransactionEventDispatcher}, which installs itself when the first event is fired. That
+ * keeps event delivery working for programmatic {@code execute} boundaries and for participants,
+ * not only for the declarative boundary that began the transaction.</p>
  */
 @Interceptor
 @TransactionalBinding
@@ -40,9 +35,6 @@ public class TransactionalInterceptor {
 
     @Inject
     private TransactionManager<?> transactionManager;
-
-    @Inject
-    private TransactionalObserverRegistry observerRegistry;
 
     @Inject
     private TransactionalMetadataRegistry metadata;
@@ -55,12 +47,7 @@ public class TransactionalInterceptor {
         }
         // the resource/status handed to the action are irrelevant here: the intercepted method
         // resolves the ambient transaction itself
-        return transactionManager.execute(definition, (resource, status) -> {
-            if (status.isNewTransaction()) {
-                status.registerSynchronization(new TransactionEventReplay(status, observerRegistry));
-            }
-            return context.proceed();
-        });
+        return transactionManager.execute(definition, (resource, status) -> context.proceed());
     }
 
     // --- definition lookup ---
