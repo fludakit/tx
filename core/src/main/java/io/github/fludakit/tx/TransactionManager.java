@@ -1,84 +1,75 @@
 package io.github.fludakit.tx;
 
-import io.github.fludakit.tx.support.TransactionContext;
-
 /**
- * Strategy SPI for resource-local transaction management, parameterized by the backing
- * resource the transaction is bound to.
+ * Resource-local transaction management for one resource type.
  *
- * <p>An implementation drives the begin/commit/rollback of a single resource type and hands
- * that resource to callers through {@link #getResource(TransactionContext)} — a JDBC manager
- * exposes an aware {@code DataSource} view (its {@code getConnection()} joins the active
- * transaction), a JPA manager exposes the bound {@code EntityManager}. The manager does not
- * interpret propagation rules: {@link io.github.fludakit.tx.support.TransactionTemplate}
- * dispatches on {@code TxType} and only asks the manager to
- * {@link #getTransaction(TransactionDefinition) start} a new transaction when one is needed.</p>
+ * <p>A manager is both the low-level demarcation API ({@link #getTransaction},
+ * {@link #commit}, {@link #rollback}) and, through {@link TransactionalOperations}, the
+ * programmatic boundary API. Applications normally inject the interface and call
+ * {@code execute}; the declarative {@code @Transactional} front-end calls the same
+ * {@code execute}. Both paths therefore share one lifecycle, one rollback rule set, and one
+ * exception hierarchy.</p>
  *
- * <p>The {@link TransactionContext} returned by {@code getTransaction} is the single handle for the
- * transaction — it carries the bound resources, callbacks, and completion flags.</p>
- *
- * <h2>Implementation Contract</h2>
- * <ol>
- *   <li><b>Resource binding:</b> in {@link #getTransaction(TransactionDefinition)}, open the
- *       resource and bind it to the returned {@link TransactionContext} by type —
- *       {@code Connection.class} for the physical connection, {@code EntityManager.class} for
- *       the JPA manager.</li>
- *   <li><b>Cleanup callback:</b> register a {@link io.github.fludakit.tx.support.TransactionCallback}
- *       to release the resource in {@code afterCompletion}, so cleanup happens even on failure.</li>
- *   <li><b>Commit / rollback:</b> retrieve the bound resource from the context and complete the
- *       transaction on it, throwing {@link TransactionException} on failure.</li>
- *   <li><b>Resource exposure:</b> {@link #getResource(TransactionContext)} returns the resource
- *       callers should work with — for a context without the bound resource (no active
- *       transaction), return the non-transactional view or {@code null}.</li>
- * </ol>
- *
- * <h2>Built-in Implementations</h2>
+ * <h2>Implementation contract</h2>
+ * <p>Implementations extend {@link io.github.fludakit.tx.support.AbstractTransactionOperations}
+ * and provide only resource primitives:</p>
  * <ul>
- *   <li>{@link io.github.fludakit.tx.jdbc.JdbcTransactionManager} —
- *       {@code TransactionManager<Connection>}</li>
- *   <li>{@link io.github.fludakit.tx.jpa.JpaTransactionManager} —
- *       {@code TransactionManager<EntityManager>}</li>
+ *   <li>{@code doBegin}: acquire the resource, start the transaction, bind it to the status</li>
+ *   <li>{@code doCommit} / {@code doRollback}: complete it</li>
+ *   <li>{@link SavepointManager}: savepoints, which makes {@code NESTED} work</li>
  * </ul>
  *
- * @param <T> the backing resource type callers receive inside a transaction
- * @see TransactionContext
+ * <p>Propagation, suspension, lifecycle dispatch, synchronizations, and completion state are
+ * owned by the template and must not be reimplemented by a manager.</p>
+ *
+ * <h2>Built-in implementations</h2>
+ * <ul>
+ *   <li>{@code JdbcTransactionManager} — {@code TransactionManager<Connection>}</li>
+ *   <li>{@code JpaTransactionManager} — {@code TransactionManager<EntityManager>}</li>
+ * </ul>
+ *
+ * @param <T> the resource type bound to a transaction
  * @see TransactionalOperations
+ * @see TransactionStatus
  */
-public interface TransactionManager<T> {
+public interface TransactionManager<T> extends TransactionalOperations<T> {
 
     /**
-     * Begin a new resource-local transaction, bind its resource, and return the transaction context.
+     * Begins a transaction without binding it to the current scope — the manual-demarcation
+     * entry point used together with {@link #commit(TransactionStatus)} /
+     * {@link #rollback(TransactionStatus)}.
      *
-     * @param definition transaction attributes (propagation, rollback rules)
-     * @return the transaction context for the started transaction
-     * @throws TransactionException if the transaction could not be started
+     * <p>Propagation is applied as far as it can be without a scope: {@code SUPPORTS},
+     * {@code NOT_SUPPORTED}, and {@code NEVER} yield the no-transaction status,
+     * {@code MANDATORY} fails without an ambient transaction, and {@code NESTED} begins a
+     * transaction when none is running. The caller owns the returned status and must complete
+     * it exactly once.</p>
+     *
+     * @param definition the transaction attributes
+     * @return the status of the begun (or joined) transaction
+     * @throws TransactionException if the transaction cannot be started
      */
-    TransactionContext getTransaction(TransactionDefinition definition) throws TransactionException;
+    TransactionStatus<T> getTransaction(TransactionDefinition definition) throws TransactionException;
 
     /**
-     * Commit the transaction represented by the given context.
+     * Commits the transaction owned by the given status.
      *
-     * @param context the transaction context returned by {@link #getTransaction(TransactionDefinition)}
+     * @param status a status returned by {@link #getTransaction(TransactionDefinition)}
      * @throws TransactionException if the commit fails
+     * @throws IllegalTransactionStateException if the status is already completed or is not owned
+     *                                          by the caller
+     * @throws UnexpectedRollbackException if the transaction was marked rollback-only by a
+     *                                     participant
      */
-    void commit(TransactionContext context) throws TransactionException;
+    void commit(TransactionStatus<T> status) throws TransactionException;
 
     /**
-     * Roll back the transaction represented by the given context.
+     * Rolls back the transaction owned by the given status.
      *
-     * @param context the transaction context returned by {@link #getTransaction(TransactionDefinition)}
+     * @param status a status returned by {@link #getTransaction(TransactionDefinition)}
      * @throws TransactionException if the rollback fails
+     * @throws IllegalTransactionStateException if the status is already completed or is not owned
+     *                                          by the caller
      */
-    void rollback(TransactionContext context) throws TransactionException;
-
-    /**
-     * The backing resource of the transaction bound to the current thread: an aware
-     * {@code DataSource} view (JDBC) or the bound {@code EntityManager} (JPA). This is what
-     * {@link TransactionalOperations} hands to the execute
-     * callback. No context parameter — the ambient, thread-bound transaction is resolved
-     * internally (outside any transaction, the non-transactional view or {@code null}).
-     *
-     * @return the backing resource of the current transaction
-     */
-    T getResource();
+    void rollback(TransactionStatus<T> status) throws TransactionException;
 }

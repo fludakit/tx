@@ -1,82 +1,262 @@
 package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.TransactionStatus;
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
+
 import org.h2.jdbcx.JdbcDataSource;
 import org.junit.jupiter.api.Test;
 
-import java.sql.*;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Logger;
 import javax.sql.DataSource;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * Integration tests for {@link JdbcTransactionManager} against an in-memory H2 database.
+ *
+ * <p>These exercise the resource half of the contract — connection acquisition, commit/rollback,
+ * read-only handling, cleanup, and savepoint nesting — with real SQL, so a green test means the
+ * data actually survived (or did not survive) the boundary.</p>
+ */
 class JdbcTransactionManagerTest {
 
     @Test
-    void getTransactionBindsConnectionWithAutoCommitDisabled() throws Exception {
-        DataSource dataSource = newDataSource("dsmgr1");
+    void execute_beginsCommitsAndReleasesTheConnection() throws Exception {
+        DataSource dataSource = newDataSource("mgr1");
+        createTable(dataSource);
         JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+        AtomicReference<Connection> bound = new AtomicReference<>();
 
-        TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        assertTrue(context.isActualTransactionActive());
+        String result = manager.execute((connection, status) -> {
+            assertSame(connection, manager.getResource());
+            assertSame(connection, status.getResource());
+            assertFalse(connection.getAutoCommit(), "auto-commit must be off inside the boundary");
+            assertTrue(status.isNewTransaction());
+            bound.set(connection);
+            insert(connection, 1);
+            return "done";
+        });
 
-        Connection bound = context.getResource(Connection.class);
-        assertNotNull(bound);
-        assertFalse(bound.getAutoCommit());
-        bound.close();
+        assertEquals("done", result);
+        assertNotNull(bound.get());
+        assertTrue(bound.get().isClosed(), "completion must release the pooled connection");
+        assertEquals(List.of(1), ids(dataSource), "a committed insert must survive the boundary");
     }
 
     @Test
-    void commitAndRollbackDelegateToConnection() throws Exception {
-        DataSource dataSource = newDataSource("dsmgr2");
+    void runtimeFailure_rollsBackTheConnection() throws Exception {
+        DataSource dataSource = newDataSource("mgr2");
+        createTable(dataSource);
         JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
 
-        TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        assertDoesNotThrow(() -> manager.commit(context));
-        assertDoesNotThrow(() -> manager.rollback(context));
+        assertThrows(IllegalStateException.class, () ->
+                manager.execute((connection, status) -> {
+                    insert(connection, 1);
+                    throw new IllegalStateException("boom");
+                }));
 
-        Connection bound = context.getResource(Connection.class);
-        bound.close();
+        assertEquals(List.of(), ids(dataSource), "a rolled back insert must be gone");
     }
 
     @Test
-    void afterCompletionResetsAndClosesConnection() throws Exception {
-        DataSource dataSource = newDataSource("dsmgr3");
+    void checkedFailure_commitsByDefault() throws Exception {
+        DataSource dataSource = newDataSource("mgr3");
+        createTable(dataSource);
         JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
 
-        TransactionContext context = manager.getTransaction(TransactionDefinition.DEFAULT);
-        Connection bound = context.getResource(Connection.class);
+        assertThrows(CheckedFailure.class, () ->
+                manager.execute((connection, status) -> {
+                    insert(connection, 1);
+                    throw new CheckedFailure("checked");
+                }));
 
-        context.getCallbacks()
-                .forEach(s -> s.afterCompletion(TransactionCallback.CompletionStatus.COMMITTED));
-
-        assertTrue(bound.isClosed());
+        assertEquals(List.of(1), ids(dataSource), "a checked failure commits unless a rule says otherwise");
     }
 
     @Test
-    void getTransaction_autocommitFailure_closesConnectionAndThrows() throws Exception {
+    void readOnly_boundaryAppliesAndResetsTheHint() throws Exception {
+        DataSource dataSource = newDataSource("mgr4");
+        createTable(dataSource);
+        List<Boolean> hints = new ArrayList<>();
+        Connection realConnection = dataSource.getConnection();
+        JdbcTransactionManager manager =
+                new JdbcTransactionManager(dataSourceReturning(recordingReadOnly(realConnection, hints)));
+
+        manager.executeRead((connection, status) -> {
+            assertTrue(status.getDefinition().readOnly());
+            return null;
+        });
+
+        assertEquals(List.of(true, false), hints,
+                "the hint must be applied at begin and cleared before the connection is released");
+    }
+
+    @Test
+    void joinedBoundaryReusesTheSameConnection() throws Exception {
+        DataSource dataSource = newDataSource("mgr5");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+        AtomicReference<Connection> outer = new AtomicReference<>();
+
+        manager.execute((connection, status) -> {
+            outer.set(connection);
+            manager.execute((innerResource, inner) -> {
+                assertSame(outer.get(), innerResource, "a participant must share the boundary's connection");
+                assertFalse(inner.isNewTransaction());
+                insert(innerResource, 1);
+                return null;
+            });
+            return null;
+        });
+
+        assertEquals(List.of(1), ids(dataSource));
+    }
+
+    @Test
+    void manualDemarcation_commitPersistsTheChanges() throws Exception {
+        DataSource dataSource = newDataSource("mgr6");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+
+        TransactionStatus<Connection> status = manager.getTransaction(TransactionDefinition.DEFAULT);
+        assertTrue(status.isActualTransactionActive());
+        assertTrue(status.isNewTransaction());
+        assertFalse(status.getResource().getAutoCommit());
+
+        insert(status.getResource(), 1);
+        manager.commit(status);
+
+        assertTrue(status.isCompleted());
+        assertTrue(status.getResource().isClosed());
+        assertEquals(List.of(1), ids(dataSource));
+    }
+
+    @Test
+    void manualDemarcation_rollbackDiscardsTheChanges() throws Exception {
+        DataSource dataSource = newDataSource("mgr7");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+
+        TransactionStatus<Connection> status = manager.getTransaction(TransactionDefinition.DEFAULT);
+        insert(status.getResource(), 1);
+        manager.rollback(status);
+
+        assertTrue(status.isCompleted());
+        assertEquals(List.of(), ids(dataSource));
+    }
+
+    @Test
+    void nested_successIsPartOfTheOuterTransaction() throws Exception {
+        DataSource dataSource = newDataSource("mgr8");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+
+        manager.execute((connection, status) -> {
+            insert(connection, 1);
+            manager.executeNested((nestedConnection, nested) -> {
+                assertSame(connection, nestedConnection);
+                assertTrue(nested.isNestedTransaction());
+                assertTrue(nested.isSavepointSupported());
+                insert(nestedConnection, 2);
+                return null;
+            });
+            return null;
+        });
+
+        assertEquals(List.of(1, 2), ids(dataSource), "a released savepoint keeps its changes");
+    }
+
+    @Test
+    void nested_failureUndoesOnlyTheNestedChanges() throws Exception {
+        DataSource dataSource = newDataSource("mgr9");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+
+        manager.execute((connection, status) -> {
+            insert(connection, 1);
+            assertThrows(IllegalStateException.class, () ->
+                    manager.executeNested((nestedConnection, nested) -> {
+                        insert(nestedConnection, 2);
+                        throw new IllegalStateException("nested failure");
+                    }));
+            insert(connection, 3);
+            return null;
+        });
+
+        assertEquals(List.of(1, 3), ids(dataSource), "a rollback to a savepoint must keep the outer work");
+    }
+
+    @Test
+    void nested_rollbackOnlyRollsBackToTheSavepointAndTheOuterCommits() throws Exception {
+        DataSource dataSource = newDataSource("mgr10");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+
+        manager.execute((connection, status) -> {
+            insert(connection, 1);
+            manager.executeNested((nestedConnection, nested) -> {
+                insert(nestedConnection, 2);
+                nested.setRollbackOnly();
+                return null;
+            });
+            insert(connection, 3);
+            return null;
+        });
+
+        assertEquals(List.of(1, 3), ids(dataSource));
+    }
+
+    @Test
+    void completion_resetsTheConnectionBeforeReleasingIt() throws Exception {
+        DataSource dataSource = newDataSource("mgr11");
+        createTable(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(dataSource);
+        AtomicReference<Connection> bound = new AtomicReference<>();
+
+        manager.execute((connection, status) -> {
+            bound.set(connection);
+            return null;
+        });
+
+        assertTrue(bound.get().isClosed());
+    }
+
+    @Test
+    void doBeginFailure_closesTheConnectionAndDoesNotLeaveATransactionBound() throws Exception {
         // setAutoCommit(false) failing means nothing is bound to clean up yet - the manager
         // itself must release the pooled connection before translating
-        DataSource dataSource = newDataSource("dsmgr4");
-        ConnectionCounters counters = new ConnectionCounters();
+        DataSource dataSource = newDataSource("mgr12");
+        AtomicInteger closes = new AtomicInteger();
         Connection pooled = dataSource.getConnection();
-        DataSource failing = new StubDataSource(() -> new FailingConnection(pooled, counters));
+        DataSource failing = dataSourceReturning(failingAutoCommit(pooled, closes));
         JdbcTransactionManager manager = new JdbcTransactionManager(failing);
 
         assertThrows(TransactionSystemException.class, () ->
-                manager.getTransaction(TransactionDefinition.DEFAULT));
+                manager.execute((connection, status) -> "never"));
 
-        assertEquals(1, counters.closeCount, "the pooled connection must be closed on the failure path");
+        assertEquals(1, closes.get(), "the pooled connection must be closed on the failure path");
+        assertTrue(manager.findTransactionStatus().isEmpty(), "nothing may stay ambient after a failed begin");
     }
 
-    private DataSource newDataSource(String name) {
+    // --- helpers -------------------------------------------------------------
+
+    private static DataSource newDataSource(String name) {
         JdbcDataSource dataSource = new JdbcDataSource();
         dataSource.setURL("jdbc:h2:mem:" + name + ";DB_CLOSE_DELAY=-1");
         dataSource.setUser("sa");
@@ -84,112 +264,91 @@ class JdbcTransactionManagerTest {
         return dataSource;
     }
 
-    /** Counts close() calls through any connection handed out. */
-    private static final class ConnectionCounters {
-        int closeCount;
+    private static void createTable(DataSource dataSource) throws SQLException {
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("create table if not exists entries (id int primary key)");
+        }
     }
 
-    private static final class StubDataSource implements DataSource {
-        private final java.util.function.Supplier<Connection> supplier;
-
-        StubDataSource(java.util.function.Supplier<Connection> supplier) {
-            this.supplier = supplier;
+    private static void insert(Connection connection, int id) throws SQLException {
+        try (Statement statement = connection.createStatement()) {
+            statement.execute("insert into entries (id) values (" + id + ")");
         }
-
-        @Override
-        public Connection getConnection() {
-            return supplier.get();
-        }
-
-        @Override
-        public Connection getConnection(String username, String password) {
-            return getConnection();
-        }
-
-        @Override public <T> T unwrap(Class<T> iface) { throw new UnsupportedOperationException(); }
-        @Override public boolean isWrapperFor(Class<?> iface) { return false; }
-        @Override public java.io.PrintWriter getLogWriter() { return null; }
-        @Override public void setLogWriter(java.io.PrintWriter out) { }
-        @Override public void setLoginTimeout(int seconds) { }
-        @Override public int getLoginTimeout() { return 0; }
-        @Override public java.util.logging.Logger getParentLogger() { return java.util.logging.Logger.getLogger("stub"); }
     }
 
-    /** A real H2 connection whose setAutoCommit(false) always fails, counting close(). */
-    private static final class FailingConnection implements Connection {
-        private final Connection delegate;
-        private final ConnectionCounters counters;
-
-        FailingConnection(Connection delegate, ConnectionCounters counters) {
-            this.delegate = delegate;
-            this.counters = counters;
-        }
-
-        @Override
-        public void setAutoCommit(boolean autoCommit) throws SQLException {
-            if (!autoCommit) {
-                throw new SQLException("simulated setAutoCommit(false) failure");
+    private static List<Integer> ids(DataSource dataSource) throws SQLException {
+        List<Integer> ids = new ArrayList<>();
+        try (Connection connection = dataSource.getConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery("select id from entries order by id")) {
+            while (resultSet.next()) {
+                ids.add(resultSet.getInt(1));
             }
-            delegate.setAutoCommit(autoCommit);
         }
+        return ids;
+    }
 
-        @Override
-        public void close() throws SQLException {
-            counters.closeCount++;
-            delegate.close();
+    private static DataSource dataSourceReturning(Connection connection) {
+        return (DataSource) Proxy.newProxyInstance(
+                DataSource.class.getClassLoader(),
+                new Class<?>[]{DataSource.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getConnection" -> connection;
+                    case "getParentLogger" -> Logger.getLogger("stub");
+                    case "getLoginTimeout" -> 0;
+                    case "isWrapperFor" -> false;
+                    default -> null;
+                });
+    }
+
+    /**
+     * A real H2 connection whose {@code setAutoCommit(false)} always fails, counting {@code close()}
+     * so the test can see whether the manager released it.
+     */
+    private static Connection failingAutoCommit(Connection delegate, AtomicInteger closes) {
+        return (Connection) Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                (proxy, method, args) -> {
+                    if ("setAutoCommit".equals(method.getName()) && !(boolean) args[0]) {
+                        throw new SQLException("simulated setAutoCommit(false) failure");
+                    }
+                    if ("close".equals(method.getName())) {
+                        closes.incrementAndGet();
+                    }
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+    }
+
+    /**
+     * A connection that records every {@code setReadOnly} call: H2 does not report the read-only
+     * flag back, so the recorded calls are the only way to see the hint reach the resource.
+     */
+    private static Connection recordingReadOnly(Connection delegate, List<Boolean> hints) {
+        return (Connection) Proxy.newProxyInstance(
+                Connection.class.getClassLoader(),
+                new Class<?>[]{Connection.class},
+                (proxy, method, args) -> {
+                    if ("setReadOnly".equals(method.getName())) {
+                        hints.add((boolean) args[0]);
+                        return null;
+                    }
+                    try {
+                        return method.invoke(delegate, args);
+                    } catch (InvocationTargetException e) {
+                        throw e.getCause();
+                    }
+                });
+    }
+
+    private static final class CheckedFailure extends Exception {
+        CheckedFailure(String message) {
+            super(message);
         }
-
-        @Override public Statement createStatement() throws SQLException { return delegate.createStatement(); }
-        @Override public PreparedStatement prepareStatement(String sql) throws SQLException { return delegate.prepareStatement(sql); }
-        @Override public CallableStatement prepareCall(String sql) throws SQLException { return delegate.prepareCall(sql); }
-        @Override public String nativeSQL(String sql) throws SQLException { return delegate.nativeSQL(sql); }
-        @Override public boolean getAutoCommit() throws SQLException { return delegate.getAutoCommit(); }
-        @Override public void commit() throws SQLException { delegate.commit(); }
-        @Override public void rollback() throws SQLException { delegate.rollback(); }
-        @Override public boolean isClosed() throws SQLException { return delegate.isClosed(); }
-        @Override public DatabaseMetaData getMetaData() throws SQLException { return delegate.getMetaData(); }
-        @Override public void setReadOnly(boolean readOnly) throws SQLException { delegate.setReadOnly(readOnly); }
-        @Override public boolean isReadOnly() throws SQLException { return delegate.isReadOnly(); }
-        @Override public void setCatalog(String catalog) throws SQLException { delegate.setCatalog(catalog); }
-        @Override public String getCatalog() throws SQLException { return delegate.getCatalog(); }
-        @Override public void setTransactionIsolation(int level) throws SQLException { delegate.setTransactionIsolation(level); }
-        @Override public int getTransactionIsolation() throws SQLException { return delegate.getTransactionIsolation(); }
-        @Override public SQLWarning getWarnings() throws SQLException { return delegate.getWarnings(); }
-        @Override public void clearWarnings() throws SQLException { delegate.clearWarnings(); }
-        @Override public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException { return delegate.createStatement(resultSetType, resultSetConcurrency); }
-        @Override public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException { return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency); }
-        @Override public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException { return delegate.prepareCall(sql, resultSetType, resultSetConcurrency); }
-        @Override public java.util.Map<String, Class<?>> getTypeMap() throws SQLException { return delegate.getTypeMap(); }
-        @Override public void setTypeMap(java.util.Map<String, Class<?>> map) throws SQLException { delegate.setTypeMap(map); }
-        @Override public void setHoldability(int holdability) throws SQLException { delegate.setHoldability(holdability); }
-        @Override public int getHoldability() throws SQLException { return delegate.getHoldability(); }
-        @Override public Savepoint setSavepoint() throws SQLException { return delegate.setSavepoint(); }
-        @Override public Savepoint setSavepoint(String name) throws SQLException { return delegate.setSavepoint(name); }
-        @Override public void rollback(Savepoint savepoint) throws SQLException { delegate.rollback(savepoint); }
-        @Override public void releaseSavepoint(Savepoint savepoint) throws SQLException { delegate.releaseSavepoint(savepoint); }
-        @Override public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException { return delegate.createStatement(resultSetType, resultSetConcurrency, resultSetHoldability); }
-        @Override public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException { return delegate.prepareStatement(sql, resultSetType, resultSetConcurrency, resultSetHoldability); }
-        @Override public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException { return delegate.prepareCall(sql, resultSetType, resultSetConcurrency, resultSetHoldability); }
-        @Override public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException { return delegate.prepareStatement(sql, autoGeneratedKeys); }
-        @Override public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException { return delegate.prepareStatement(sql, columnIndexes); }
-        @Override public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException { return delegate.prepareStatement(sql, columnNames); }
-        @Override public Clob createClob() throws SQLException { return delegate.createClob(); }
-        @Override public Blob createBlob() throws SQLException { return delegate.createBlob(); }
-        @Override public NClob createNClob() throws SQLException { return delegate.createNClob(); }
-        @Override public SQLXML createSQLXML() throws SQLException { return delegate.createSQLXML(); }
-        @Override public boolean isValid(int timeout) throws SQLException { return delegate.isValid(timeout); }
-        @Override public void setClientInfo(String name, String value) throws SQLClientInfoException { delegate.setClientInfo(name, value); }
-        @Override public void setClientInfo(java.util.Properties properties) throws SQLClientInfoException { delegate.setClientInfo(properties); }
-        @Override public String getClientInfo(String name) throws SQLException { return delegate.getClientInfo(name); }
-        @Override public java.util.Properties getClientInfo() throws SQLException { return delegate.getClientInfo(); }
-        @Override public Array createArrayOf(String typeName, Object[] elements) throws SQLException { return delegate.createArrayOf(typeName, elements); }
-        @Override public Struct createStruct(String typeName, Object[] attributes) throws SQLException { return delegate.createStruct(typeName, attributes); }
-        @Override public void setSchema(String schema) throws SQLException { delegate.setSchema(schema); }
-        @Override public String getSchema() throws SQLException { return delegate.getSchema(); }
-        @Override public void abort(java.util.concurrent.Executor executor) throws SQLException { delegate.abort(executor); }
-        @Override public void setNetworkTimeout(java.util.concurrent.Executor executor, int milliseconds) throws SQLException { delegate.setNetworkTimeout(executor, milliseconds); }
-        @Override public int getNetworkTimeout() throws SQLException { return delegate.getNetworkTimeout(); }
-        @Override public <T> T unwrap(Class<T> iface) throws SQLException { return delegate.unwrap(iface); }
-        @Override public boolean isWrapperFor(Class<?> iface) throws SQLException { return delegate.isWrapperFor(iface); }
     }
 }

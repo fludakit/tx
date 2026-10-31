@@ -1,9 +1,9 @@
 package io.github.fludakit.tx.jdbc;
 
+import io.github.fludakit.tx.TransactionStatus;
+import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionCallback;
-import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -19,13 +19,24 @@ import javax.sql.DataSource;
 /**
  * {@link DataSource} decorator that makes a plain pool transaction-aware.
  *
- * <p>When a transaction is active and this pool is bound, {@link #getConnection()} returns a
- * close-suppressing proxy over the transaction-bound connection. If this pool is not yet bound it
- * joins the current transaction by opening and binding a connection (best-effort, non-XA). Outside
- * a transaction it delegates straight to the pool.</p>
+ * <p>When an actual transaction is running, {@link #getConnection()} returns a close-suppressing
+ * proxy over the transaction's connection. Outside one it delegates straight to the pool, and
+ * {@code close()} stays real.</p>
  *
- * <p>The delegate must be the <em>same</em> raw {@code DataSource} instance that the
- * {@link JdbcTransactionManager} uses as its bind key.</p>
+ * <h2>Finding the transaction's connection</h2>
+ * <p>The connection is resolved from the current {@link TransactionStatus} in this order:</p>
+ * <ol>
+ *   <li>the status resource itself, when the transaction is JDBC-managed
+ *       ({@code JdbcTransactionManager} binds a {@code Connection})</li>
+ *   <li>the {@code Connection.class} attribute, when the transaction is managed by something
+ *       else ({@code JpaTransactionManager} binds an {@code EntityManager} and exposes the
+ *       underlying connection)</li>
+ *   <li>otherwise the proxy joins the transaction: it opens a connection, disables auto-commit,
+ *       binds it atomically, and commits/rolls it back with the transaction</li>
+ * </ol>
+ *
+ * <p>A completed status is never joined: a leftover binding must not hand callers a connection
+ * whose transaction already ended.</p>
  */
 public class TransactionAwareDataSourceProxy implements DataSource {
 
@@ -33,8 +44,70 @@ public class TransactionAwareDataSourceProxy implements DataSource {
 
     private final DataSource delegate;
 
+    /**
+     * @param delegate the raw pool whose connections join the running transaction
+     */
     public TransactionAwareDataSourceProxy(DataSource delegate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
+    }
+
+    @Override
+    public Connection getConnection() throws SQLException {
+        TransactionStatus<?> status = activeStatus();
+        if (status == null) {
+            return delegate.getConnection();
+        }
+        Connection connection = resolveConnection(status);
+        if (connection == null) {
+            connection = joinTransaction(status);
+        }
+        return closeSuppressingProxy(connection);
+    }
+
+    @Override
+    public Connection getConnection(String username, String password) throws SQLException {
+        return getConnection();
+    }
+
+    private static TransactionStatus<?> activeStatus() {
+        TransactionStatus<?> status = TransactionStatusHolder.get();
+        if (status == null || !status.isActualTransactionActive() || status.isCompleted()) {
+            return null;
+        }
+        return status;
+    }
+
+    private static Connection resolveConnection(TransactionStatus<?> status) {
+        if (status.getResource() instanceof Connection connection) {
+            return connection;
+        }
+        return status.getAttribute(Connection.class);
+    }
+
+    private Connection joinTransaction(TransactionStatus<?> status) throws SQLException {
+        Connection connection = delegate.getConnection();
+        try {
+            connection.setAutoCommit(false);
+            Connection bound = status.putAttributeIfAbsent(Connection.class, connection);
+            if (bound != null) {
+                // another participant bound a connection first - use the winner's and release ours
+                closeQuietly(connection, "closing a connection that lost the transaction join");
+                return bound;
+            }
+            status.registerSynchronization(new ConnectionJoining(connection));
+            return connection;
+        } catch (RuntimeException | SQLException ex) {
+            closeQuietly(connection, "closing a connection that failed to join the transaction");
+            throw ex;
+        }
+    }
+
+    private static void closeQuietly(Connection connection, String what) {
+        try {
+            connection.close();
+        } catch (SQLException ex) {
+            LOG.log(Level.WARNING, "Failed " + what, ex);
+        }
     }
 
     private static Connection closeSuppressingProxy(Connection connection) {
@@ -51,52 +124,6 @@ public class TransactionAwareDataSourceProxy implements DataSource {
                         throw e.getCause();
                     }
                 });
-    }
-
-    @Override
-    public Connection getConnection() throws SQLException {
-        TransactionContext ctx = TransactionContextHolder.get();
-        if (ctx != null && ctx.isActualTransactionActive()) {
-            Connection txConnection = ctx.getResource(Connection.class);
-            if (txConnection == null) {
-                txConnection = joinTransaction();
-            }
-            return closeSuppressingProxy(txConnection);
-        }
-        return delegate.getConnection();
-    }
-
-    private Connection joinTransaction() throws SQLException {
-        TransactionContext ctx = TransactionContextHolder.get();
-        Connection connection = delegate.getConnection();
-        try {
-            connection.setAutoCommit(false);
-            Object bound = ctx.bindResourceIfAbsent(Connection.class, connection);
-            if (bound != null) {
-                // lost the join race — another thread already bound a connection to this
-                // transaction; use the winner's connection and release ours
-                try {
-                    connection.close();
-                } catch (SQLException ex) {
-                    LOG.log(Level.WARNING, "Failed to close connection after losing transaction join", ex);
-                }
-                return (Connection) bound;
-            }
-            ctx.registerCallback(new ConnectionJoining(connection));
-            return connection;
-        } catch (RuntimeException | SQLException e) {
-            try {
-                connection.close();
-            } catch (SQLException ex) {
-                LOG.log(Level.WARNING, "Failed to close connection after failed join", ex);
-            }
-            throw e;
-        }
-    }
-
-    @Override
-    public Connection getConnection(String username, String password) throws SQLException {
-        return getConnection();
     }
 
     @Override
@@ -134,7 +161,11 @@ public class TransactionAwareDataSourceProxy implements DataSource {
         return delegate.getParentLogger();
     }
 
-    private static final class ConnectionJoining implements TransactionCallback {
+    /**
+     * Completes a connection this proxy joined: commits it on commit, rolls it back on rollback,
+     * then resets and releases it.
+     */
+    private static final class ConnectionJoining implements TransactionSynchronization {
 
         private final Connection connection;
 
@@ -147,22 +178,23 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             try {
                 connection.commit();
             } catch (SQLException ex) {
-                throw new TransactionSystemException("Could not commit joined JDBC transaction", ex);
+                throw new TransactionSystemException("Could not commit the joined JDBC connection", ex);
             }
         }
 
         @Override
-        public void afterCompletion(CompletionStatus status) {
+        public void afterCompletion(Status status) {
             try {
-                if (status == CompletionStatus.ROLLED_BACK) {
+                if (status == Status.ROLLED_BACK && !connection.isClosed()) {
                     connection.rollback();
                 }
-                if (!connection.getAutoCommit()) {
+                if (!connection.isClosed() && !connection.getAutoCommit()) {
                     connection.setAutoCommit(true);
                 }
-                connection.close();
             } catch (SQLException ex) {
-                LOG.log(Level.WARNING, "Failed to clean up joined JDBC Connection", ex);
+                LOG.log(Level.WARNING, "Failed to complete the joined JDBC connection", ex);
+            } finally {
+                closeQuietly(connection, "releasing a joined JDBC connection");
             }
         }
     }

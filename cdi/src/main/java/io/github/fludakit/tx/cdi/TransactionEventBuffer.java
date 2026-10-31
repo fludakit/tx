@@ -12,9 +12,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Per-transaction buffer of CDI events fired while the transaction was in progress, recorded
  * per capture group.
  *
- * <p>Bound to the {@link io.github.fludakit.tx.support.TransactionContext} under
- * {@code TransactionEventBuffer.class} by {@link TransactionEventReplay} when the interceptor
- * starts the transaction — a CDI-only concern that lives in this module, not in core.</p>
+ * <p>Bound to the {@link io.github.fludakit.tx.TransactionStatus} as a
+ * {@code TransactionEventBuffer.class} attribute by {@link TransactionEventReplay} when the
+ * interceptor starts the transaction — a CDI-only concern that lives in this module, not in
+ * core.</p>
  */
 final class TransactionEventBuffer {
 

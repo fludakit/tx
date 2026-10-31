@@ -1,37 +1,38 @@
 package io.github.fludakit.tx.cdi;
 
-import io.github.fludakit.tx.support.TransactionCallback;
-import io.github.fludakit.tx.support.TransactionContext;
+import io.github.fludakit.tx.TransactionStatus;
+import io.github.fludakit.tx.TransactionSynchronization;
+
 import jakarta.enterprise.event.TransactionPhase;
 import jakarta.enterprise.inject.spi.ObserverMethod;
 
-import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * CDI transaction callback that replays buffered events to transactional observers.
+ * CDI transaction synchronization that replays buffered events to transactional observers.
  *
- * <p>This callback queries the {@link TransactionalObserverRegistry} for observers at each
- * phase and replays the events buffered in this transaction's {@link TransactionEventBuffer}
- * to matching observers.</p>
+ * <p>At each lifecycle point it queries the {@link TransactionalObserverRegistry} for observers
+ * of the matching phase and replays the events buffered in this transaction's
+ * {@link TransactionEventBuffer}.</p>
  *
- * <p>Registered on each {@code TransactionContext} created by the interceptor, this callback
- * automatically replays buffered CDI events at the matching phase when the core lifecycle
- * methods are invoked.</p>
+ * <p>Installed by {@link TransactionalInterceptor} on every transaction it begins. Because a
+ * joined or nested status registers its synchronizations on the running transaction, an event
+ * fired inside any participant reaches the boundary that owns the transaction and is replayed
+ * exactly once.</p>
  */
-final class TransactionEventReplay implements TransactionCallback {
+final class TransactionEventReplay implements TransactionSynchronization {
 
     private static final Logger LOG = Logger.getLogger(TransactionEventReplay.class.getName());
 
     private final TransactionalObserverRegistry registry;
     private final TransactionEventBuffer buffer;
 
-    TransactionEventReplay(TransactionContext context, TransactionalObserverRegistry registry) {
+    TransactionEventReplay(TransactionStatus<?> status, TransactionalObserverRegistry registry) {
         this.registry = registry;
         this.buffer = new TransactionEventBuffer();
-        // the capture observer finds the buffer through the context's type-keyed resources
-        context.bindResource(TransactionEventBuffer.class, buffer);
+        // the capture observer finds the buffer through the status's typed attributes
+        status.putAttributeIfAbsent(TransactionEventBuffer.class, buffer);
     }
 
     @Override
@@ -45,8 +46,8 @@ final class TransactionEventReplay implements TransactionCallback {
     }
 
     @Override
-    public void afterCompletion(CompletionStatus status) {
-        if (status == CompletionStatus.ROLLED_BACK) {
+    public void afterCompletion(Status status) {
+        if (status == Status.ROLLED_BACK) {
             notify(TransactionPhase.AFTER_FAILURE);
         }
         notify(TransactionPhase.AFTER_COMPLETION);

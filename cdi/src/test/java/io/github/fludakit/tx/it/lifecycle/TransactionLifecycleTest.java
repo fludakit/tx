@@ -1,13 +1,15 @@
 package io.github.fludakit.tx.it.lifecycle;
 
-import io.github.fludakit.tx.TransactionManager;
 import io.github.fludakit.tx.TransactionDefinition;
+import io.github.fludakit.tx.TransactionStatus;
 import io.github.fludakit.tx.TransactionSystemException;
+import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
-import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionCallback;
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.support.AbstractTransactionOperations;
+import io.github.fludakit.tx.support.DefaultTransactionStatus;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
+
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
@@ -23,8 +25,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Drives the interceptor lifecycle against a stub {@link TransactionManager} to verify the
- * completion contract (exactly-once completion, rollback-only, begin/commit/rollback failures).
+ * Drives the interceptor against a stub {@link AbstractTransactionOperations} to verify that an
+ * annotated call is bracketed by exactly one begin and one completion, and that a failing
+ * resource primitive still produces one completion (exactly-once completion, rollback-only,
+ * begin/commit/rollback failures).
  */
 @ExtendWith(WeldJunit5Extension.class)
 class TransactionLifecycleTest {
@@ -49,13 +53,14 @@ class TransactionLifecycleTest {
     }
 
     @Test
-    void commitFailureDoesNotDoubleComplete() {
+    void commitFailureStillCompletesExactlyOnce() {
         manager.commitFailure = new TransactionSystemException("boom", new RuntimeException("cause"));
 
         assertThrows(TransactionSystemException.class, service::succeeds);
 
+        assertEquals(1, manager.beginCount);
         assertEquals(1, manager.commitCount);
-        assertEquals(0, manager.rollbackCount);
+        assertEquals(1, manager.rollbackCount, "a failed commit must trigger a best-effort rollback");
         assertEquals(1, manager.afterCompletionCount);
     }
 
@@ -63,6 +68,7 @@ class TransactionLifecycleTest {
     void rollbackOnlyForcesRollback() {
         service.marksRollbackOnly();
 
+        assertEquals(1, manager.beginCount);
         assertEquals(0, manager.commitCount);
         assertEquals(1, manager.rollbackCount);
         assertEquals(1, manager.afterCompletionCount);
@@ -74,6 +80,7 @@ class TransactionLifecycleTest {
 
         assertThrows(TransactionSystemException.class, service::succeeds);
 
+        assertEquals(1, manager.beginCount);
         assertEquals(0, manager.commitCount);
         assertEquals(0, manager.rollbackCount);
         assertEquals(0, manager.afterCompletionCount);
@@ -83,14 +90,17 @@ class TransactionLifecycleTest {
     void rollbackFailureFiresUnknownCompletion() {
         manager.rollbackFailure = new TransactionSystemException("rollback", new RuntimeException("cause"));
 
-        assertThrows(TransactionSystemException.class, service::throwsRuntime);
+        assertThrows(IllegalStateException.class, service::throwsRuntime);
 
         assertEquals(1, manager.rollbackCount);
         assertEquals(1, manager.afterCompletionCount);
     }
 
     @Singleton
-    public static class StubTransactionManager implements TransactionManager<String> {
+    public static class StubTransactionManager extends AbstractTransactionOperations<String> {
+
+        static final String RESOURCE = "stub-resource";
+
         int beginCount;
         int commitCount;
         int rollbackCount;
@@ -110,23 +120,22 @@ class TransactionLifecycleTest {
         }
 
         @Override
-        public TransactionContext getTransaction(TransactionDefinition definition) {
+        protected void doBegin(DefaultTransactionStatus<String> status) {
             beginCount++;
             if (beginFailure != null) {
                 throw beginFailure;
             }
-            TransactionContext context = new TransactionContext(true);
-            context.registerCallback(new TransactionCallback() {
+            bindResource(status, RESOURCE);
+            status.registerSynchronization(new TransactionSynchronization() {
                 @Override
-                public void afterCompletion(CompletionStatus status) {
+                public void afterCompletion(Status status) {
                     afterCompletionCount++;
                 }
             });
-            return context;
         }
 
         @Override
-        public void commit(TransactionContext context) {
+        protected void doCommit(DefaultTransactionStatus<String> status) {
             commitCount++;
             if (commitFailure != null) {
                 throw commitFailure;
@@ -134,28 +143,25 @@ class TransactionLifecycleTest {
         }
 
         @Override
-        public void rollback(TransactionContext context) {
+        protected void doRollback(DefaultTransactionStatus<String> status) {
             rollbackCount++;
             if (rollbackFailure != null) {
                 throw rollbackFailure;
             }
         }
-
-        @Override
-        public String getResource() {
-            return "stub-resource";
-        }
     }
 
     @Singleton
     public static class LifecycleService {
+
         @Transactional
         public void succeeds() {
         }
 
         @Transactional
         public void marksRollbackOnly() {
-            TransactionContextHolder.get().setRollbackOnly();
+            TransactionStatus<?> status = TransactionStatusHolder.get();
+            status.setRollbackOnly();
         }
 
         @Transactional

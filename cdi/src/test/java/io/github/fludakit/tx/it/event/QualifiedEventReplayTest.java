@@ -1,10 +1,9 @@
 package io.github.fludakit.tx.it.event;
 
-import io.github.fludakit.tx.TransactionDefinition;
-import io.github.fludakit.tx.TransactionManager;
-import io.github.fludakit.tx.support.TransactionContext;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
+import io.github.fludakit.tx.support.AbstractTransactionOperations;
+import io.github.fludakit.tx.support.DefaultTransactionStatus;
 import jakarta.enterprise.context.Dependent;
 import jakarta.enterprise.event.Event;
 import jakarta.enterprise.event.Observes;
@@ -103,25 +102,20 @@ class QualifiedEventReplayTest {
     }
 
     @Singleton
-    public static class StubTransactionManager implements TransactionManager<String> {
+    public static class StubTransactionManager extends AbstractTransactionOperations<String> {
 
         @Override
-        public TransactionContext getTransaction(TransactionDefinition definition) {
-            return new TransactionContext(true);
+        protected void doBegin(DefaultTransactionStatus<String> status) {
+            bindResource(status, "stub-resource");
         }
 
         @Override
-        public void commit(TransactionContext context) {
+        protected void doCommit(DefaultTransactionStatus<String> status) {
             // phases are triggered by the interceptor around this call; nothing to do here
         }
 
         @Override
-        public void rollback(TransactionContext context) {
-        }
-
-        @Override
-        public String getResource() {
-            return "stub-resource";
+        protected void doRollback(DefaultTransactionStatus<String> status) {
         }
     }
 }

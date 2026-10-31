@@ -1,7 +1,7 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.support.TransactionContext;
-import io.github.fludakit.tx.support.TransactionContextHolder;
+import io.github.fludakit.tx.TransactionStatus;
+import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import jakarta.persistence.EntityManager;
 
@@ -14,8 +14,8 @@ import jakarta.persistence.EntityManager;
  * em.persist(entity);
  * }</pre>
  *
- * <p>The lookup is by type ({@code EntityManager.class}), so it works identically with raw
- * instances and CDI client proxies.</p>
+ * <p>The EntityManager is the resource of a JPA transaction, so the lookup is by type and works
+ * identically with raw instances and CDI client proxies.</p>
  *
  * @see JpaTransactionManager
  */
@@ -32,14 +32,25 @@ public final class JpaHelper {
      * @throws IllegalStateException if no transaction is active or no EntityManager is bound
      */
     public static EntityManager currentEntityManager() {
-        TransactionContext ctx = TransactionContextHolder.get();
-        if (ctx == null || !ctx.isActualTransactionActive()) {
+        TransactionStatus<?> status = TransactionStatusHolder.get();
+        if (status == null || !status.isActualTransactionActive() || status.isCompleted()) {
             throw new IllegalStateException("No transaction is active");
         }
-        EntityManager em = ctx.getResource(EntityManager.class);
-        if (em == null) {
-            throw new IllegalStateException("No EntityManager bound to the current transaction");
+        EntityManager entityManager = resolve(status);
+        if (entityManager == null) {
+            throw new IllegalStateException("No EntityManager is bound to the current transaction");
         }
-        return em;
+        return entityManager;
+    }
+
+    /**
+     * The EntityManager of a transaction: the status resource when the transaction is
+     * JPA-managed, the {@code EntityManager.class} attribute when something else manages it.
+     */
+    static EntityManager resolve(TransactionStatus<?> status) {
+        if (status.getResource() instanceof EntityManager entityManager) {
+            return entityManager;
+        }
+        return status.getAttribute(EntityManager.class);
     }
 }

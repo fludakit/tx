@@ -6,10 +6,10 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 ## Modules
 
-- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, exceptions) plus the `support` package holding the transaction context, status, callbacks, and savepoint SPI.
+- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions) plus the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
 - `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager` and `TransactionAwareDataSourceProxy`.
-- `fluda-tx-jpa`: JPA-based transaction manager (*coming soon*).
+- `fluda-tx-jpa`: Resource-local `JpaTransactionManager`, `JpaHelper`, and `JpaBootstrap`.
 
 ## Usage
 
@@ -23,13 +23,24 @@ import jakarta.transaction.Transactional;
 DataSource raw = ...; // your connection pool
 JdbcTransactionManager txManager = new JdbcTransactionManager(raw);
 
-TransactionalOperations<Connection> txOps = new DefaultTransactionalOperations<>(txManager);
-
 @Transactional
 public void createOrder(Order order) {
     // runs inside a resource-local transaction
 }
 ```
+
+The manager *is* the template: it implements `TransactionalOperations`, so programmatic
+boundaries need no wrapper object.
+
+```java
+txManager.execute(TransactionDefinition.withDefaults(), (connection, status) -> {
+    // the bound Connection is handed to the callback
+    return repository.insert(connection, order);
+});
+```
+
+`TransactionDefinition` also carries the propagation, the rollback rules, and the read-only
+hint, so the programmatic and the declarative front-ends cannot disagree.
 
 For CDI setup, transaction-phase callbacks and events, multiple DataSources, and mixing JPA with JDBC, see the [Transaction documentation](https://fludakit.github.io/documentation/tx/getting-started/).
 

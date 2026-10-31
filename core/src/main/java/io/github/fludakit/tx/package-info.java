@@ -1,35 +1,51 @@
 /**
- * Resource-local transaction management for Jakarta EE and Java SE applications — the
+ * Resource-local transaction management for Java SE and Jakarta EE applications — the
  * application-facing API.
  *
- * <p>This package provides a lightweight transaction management SPI for managing resource-local
- * transactions (JDBC, JPA) without requiring a full JTA implementation. The main entry point is
- * {@link io.github.fludakit.tx.TransactionManager}, which defines the contract for starting,
- * committing, and rolling back transactions.</p>
+ * <p>These types describe transactions, not the containers they run in: a transaction is one
+ * {@link io.github.fludakit.tx.TransactionStatus} object, created, bound, and completed by a
+ * {@link io.github.fludakit.tx.TransactionManager}. There is no dependency on a JTA
+ * implementation; only the standard {@code jakarta.transaction} annotations and exceptions are
+ * reused.</p>
  *
- * <p>Only the types an application calls (or an adapter implements) live here; the runtime
- * glue and SPI plumbing live in {@code io.github.fludakit.tx.support}.</p>
- *
- * <h2>Core Concepts</h2>
+ * <h2>The model</h2>
  * <ul>
- *   <li>{@link io.github.fludakit.tx.TransactionManager} — SPI for transaction lifecycle management</li>
- *   <li>{@link io.github.fludakit.tx.TransactionDefinition} — Transaction propagation and isolation settings</li>
- *   <li>{@link io.github.fludakit.tx.TransactionalOperations} — Programmatic transaction execution</li>
- *   <li>{@link io.github.fludakit.tx.TransactionExecution} — The unit of work handed to {@code execute}</li>
- *   <li>{@link io.github.fludakit.tx.TransactionSavepoint} — A handle to a transaction savepoint</li>
- *   <li>{@link io.github.fludakit.tx.support.TransactionContext} — Holds bound resources and callbacks for a transaction</li>
- *   <li>{@link io.github.fludakit.tx.support.TransactionCallback} — Lifecycle hooks (beforeCommit, afterCompletion, etc.)</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionDefinition} — propagation, rollback rules, and
+ *       the read-only hint; it owns the rollback decision</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionStatus} — one transaction: resource, rollback
+ *       flags, synchronizations, savepoints, completion state</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionManager} — the demarcation API
+ *       ({@code getTransaction} / {@code commit} / {@code rollback}) plus, through
+ *       {@link io.github.fludakit.tx.TransactionalOperations}, {@code execute}</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionExecution} — the unit of work handed to
+ *       {@code execute}, with the bound resource</li>
+ *   <li>{@link io.github.fludakit.tx.TransactionSynchronization} — lifecycle callbacks</li>
+ *   <li>{@link io.github.fludakit.tx.SavepointManager} — savepoints, which make {@code NESTED}
+ *       work</li>
  * </ul>
  *
- * <h2>Usage with CDI</h2>
- * <p>In Jakarta EE environments, use the {@code @Transactional} annotation to declaratively
- * manage transactions. The CDI interceptor handles propagation and delegates to the appropriate
- * {@code TransactionManager}:</p>
+ * <h2>Programmatic usage</h2>
+ * <pre>{@code
+ * @Inject
+ * TransactionalOperations<EntityManager> txOps;
+ *
+ * public Long createUser(User user) throws Exception {
+ *     return txOps.execute((em, status) -> {
+ *         em.persist(user);
+ *         return user.getId();
+ *     });
+ * }
+ * }</pre>
+ *
+ * <h2>Declarative usage</h2>
+ * <p>With the {@code fluda-tx-cdi} module on the classpath, the standard Jakarta annotation
+ * works unchanged. The interceptor resolves the definition once at deployment and drives the
+ * same {@code execute} path, so the two front-ends share one lifecycle and one rollback rule
+ * set.</p>
  * <pre>{@code
  * @ApplicationScoped
  * public class UserService {
- *     @Inject
- *     private EntityManager em;
+ *     @Inject EntityManager em;
  *
  *     @Transactional
  *     public void createUser(User user) {
@@ -38,51 +54,34 @@
  * }
  * }</pre>
  *
- * <h2>Programmatic Usage</h2>
- * <p>For programmatic control, inject {@link io.github.fludakit.tx.TransactionalOperations}
- * — the execute callback receives the transaction's backing resource directly:</p>
- * <pre>{@code
- * @Inject
- * private TransactionalOperations<DataSource> txOps;
+ * <h2>Propagation</h2>
+ * <table border="1">
+ *   <caption>Propagation behaviour</caption>
+ *   <tr><th>{@code TxType}</th><th>No ambient transaction</th><th>Ambient transaction</th></tr>
+ *   <tr><td>{@code REQUIRED}</td><td>begin</td><td>join</td></tr>
+ *   <tr><td>{@code REQUIRES_NEW}</td><td>begin</td><td>suspend, begin, resume</td></tr>
+ *   <tr><td>{@code SUPPORTS}</td><td>no transaction</td><td>join</td></tr>
+ *   <tr><td>{@code NOT_SUPPORTED}</td><td>no transaction</td><td>suspend</td></tr>
+ *   <tr><td>{@code MANDATORY}</td><td>fail</td><td>join</td></tr>
+ *   <tr><td>{@code NEVER}</td><td>no transaction</td><td>fail</td></tr>
+ *   <tr><td>{@code NESTED}</td><td>begin</td><td>savepoint section</td></tr>
+ * </table>
  *
- * public void transferMoney(Long fromId, Long toId, BigDecimal amount) {
- *     txOps.execute((ds, status) -> {
- *         try (Connection conn = ds.getConnection()) {   // joins the active transaction
- *             // ... perform transfer ...
- *         }
- *         return null;
- *     });
- * }
- * }</pre>
- *
- * <h2>Built-in Implementations</h2>
+ * <h2>Built-in implementations</h2>
  * <ul>
- *   <li>{@code io.github.fludakit.tx.jdbc.JdbcTransactionManager} — JDBC transactions</li>
- *   <li>{@code io.github.fludakit.tx.jpa.JpaTransactionManager} — JPA transactions with JDBC fallback</li>
+ *   <li>{@code io.github.fludakit.tx.jdbc.JdbcTransactionManager} — {@code Connection}</li>
+ *   <li>{@code io.github.fludakit.tx.jpa.JpaTransactionManager} — {@code EntityManager}</li>
  * </ul>
  *
- * <h2>Transaction Propagation</h2>
- * <p>The {@link io.github.fludakit.tx.TransactionDefinition} supports standard propagation types:</p>
- * <ul>
- *   <li>{@code REQUIRED} (default) — Join existing transaction or create new one</li>
- *   <li>{@code REQUIRES_NEW} — Always create new transaction, suspending existing</li>
- *   <li>{@code SUPPORTS} — Execute within transaction if one exists</li>
- *   <li>{@code NOT_SUPPORTED} — Execute non-transactionally, suspending existing</li>
- *   <li>{@code MANDATORY} — Require existing transaction</li>
- *   <li>{@code NEVER} — Fail if transaction exists</li>
- * </ul>
- *
- * <h2>Resource Binding</h2>
- * <p>Each {@code TransactionManager} binds its resource (Connection, EntityManager)
- * to the {@link io.github.fludakit.tx.support.TransactionContext}, keyed by type. Use
- * {@link io.github.fludakit.tx.support.TransactionContext#getResource(Class)} to retrieve
- * the bound resource in a type-safe manner.</p>
+ * <h2>Exceptions</h2>
+ * <p>Every failure derives from {@link io.github.fludakit.tx.TransactionException}, which
+ * extends the spec's {@code jakarta.transaction.TransactionalException}. Callers can therefore
+ * catch either type on either path.</p>
  *
  * @see io.github.fludakit.tx.TransactionManager
  * @see io.github.fludakit.tx.TransactionDefinition
+ * @see io.github.fludakit.tx.TransactionStatus
  * @see io.github.fludakit.tx.TransactionalOperations
- * @see io.github.fludakit.tx.TransactionExecution
- * @see io.github.fludakit.tx.support.TransactionContext
- * @see io.github.fludakit.tx.support.TransactionCallback
+ * @see io.github.fludakit.tx.support.AbstractTransactionOperations
  */
 package io.github.fludakit.tx;
