@@ -52,8 +52,10 @@ public interface TransactionStatus<T> {
      * <p>Atomic on purpose: two threads joining the same transaction must not both install (and
      * later both release) a per-transaction object.</p>
      *
+     * @param type the attribute type
+     * @param value the value to bind
      * @return {@code null} if this call bound the value, otherwise the value already bound
-     * @throws IllegalStateException if the status is completed
+     * @throws IllegalTransactionStateException if the status is completed
      */
     <A> A putAttributeIfAbsent(Class<A> type, A value);
 
@@ -79,7 +81,7 @@ public interface TransactionStatus<T> {
      * Marks the transaction rollback-only: it will roll back even if the unit of work returns
      * normally.
      *
-     * @throws IllegalStateException if the status is completed
+     * @throws IllegalTransactionStateException if the status is completed
      */
     void setRollbackOnly();
 

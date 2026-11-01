@@ -19,8 +19,6 @@ import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import javax.sql.DataSource;
-
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -127,11 +125,6 @@ class TransactionScopedTest {
         @Transactional
         public void setValue(String value) {
             bean.setValue(value);
-        }
-
-        @Transactional
-        public String getValue() {
-            return bean.getValue();
         }
 
         @Transactional

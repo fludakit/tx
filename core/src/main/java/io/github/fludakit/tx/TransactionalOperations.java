@@ -56,11 +56,6 @@ public interface TransactionalOperations<T> {
         return execute(TransactionDefinition.readOnlyDefinition(), execution);
     }
 
-    /** Executes a unit of work with the default (writable) definition. */
-    default <R> R executeWrite(TransactionExecution<T, R> execution) throws Exception {
-        return execute(TransactionDefinition.withDefaults(), execution);
-    }
-
     /**
      * Executes a unit of work in a savepoint-scoped section of the ambient transaction.
      *

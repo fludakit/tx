@@ -3,7 +3,6 @@ package io.github.fludakit.tx.it.jpa;
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
 import jakarta.inject.Inject;
-import jakarta.persistence.EntityManagerFactory;
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
@@ -31,9 +30,6 @@ class JpaTransactionalTest {
 
     @Inject
     private JpaTestService service;
-
-    @Inject
-    private EntityManagerFactory emf;
 
     @Inject
     private DataSource dataSource;

@@ -177,10 +177,13 @@ failure while rolling back does the same. The transaction is completed exactly o
 | `NEVER`       | no-tx status                      | `TransactionUsageException`            |
 | `NESTED`      | begin                             | savepoint-scoped section               |
 
-`join` reuses the *same status object*. There is no wrapper: a joined call must not complete
-the transaction, and `isNewTransaction()` is `false` on it, which is exactly what the caller
-sees. A `NESTED` section is the one case that needs a distinct object, because it owns a
-savepoint and its rollback-only flag must stay local.
+`join` hands the participant a `JoinedTransactionStatus` view over the running transaction. The
+view owns nothing: resource, definition, attributes, savepoints, and synchronizations all delegate
+to the owning status, `isNewTransaction()` is `false`, and the participant must not complete the
+transaction. A rollback-only mark on the view is escalated to the owner as *global* rollback-only,
+so the boundary that actually commits cannot silently ignore it. A `NESTED` section is the other
+case with its own status object, because it owns a savepoint and its rollback-only flag must stay
+local.
 
 Suspension is scope-based: the holder restores the outer status when the inner scope closes, so
 `REQUIRES_NEW` and `NOT_SUPPORTED` cannot leak. `doSuspend`/`doResume` exist for managers that

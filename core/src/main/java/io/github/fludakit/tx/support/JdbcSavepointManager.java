@@ -1,6 +1,5 @@
 package io.github.fludakit.tx.support;
 
-import io.github.fludakit.tx.JdbcSavepoint;
 import io.github.fludakit.tx.NestedTransactionNotSupportedException;
 import io.github.fludakit.tx.SavepointManager;
 import io.github.fludakit.tx.TransactionSavepoint;
@@ -9,6 +8,7 @@ import io.github.fludakit.tx.TransactionSystemException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.Savepoint;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -32,22 +32,21 @@ import java.util.logging.Logger;
  * disappears with the transaction either way — so the manager logs and continues instead of
  * failing a nested commit the driver already accepted.</p>
  *
- * <p>Savepoint names come from a per-manager counter and carry a configurable prefix, so several
+ * <p>Savepoint names come from a per-manager counter and carry a fixed prefix, so several
  * managers over the same connection cannot collide and a failing section is easy to spot in a
  * driver log.</p>
  */
 public final class JdbcSavepointManager implements SavepointManager {
 
-    /** Prefix used by {@link #over(Supplier)}. */
-    public static final String DEFAULT_NAME_PREFIX = "fluda_sp_";
-
     private static final Logger LOG = Logger.getLogger(JdbcSavepointManager.class.getName());
+
+    // Names a savepoint so a conflicting name from another manager is recognisable in a driver log
+    private static final String NAME_PREFIX = "fluda_sp_";
 
     // Message SQL Server (and a few other drivers) report from releaseSavepoint
     private static final String OPERATION_NOT_SUPPORTED = "This operation is not supported.";
 
     private final Supplier<Connection> connection;
-    private final String namePrefix;
     private final AtomicInteger counter = new AtomicInteger();
 
     /**
@@ -56,26 +55,12 @@ public final class JdbcSavepointManager implements SavepointManager {
      * @param connection supplies the transaction's connection, or {@code null} when none is bound
      */
     public JdbcSavepointManager(Supplier<Connection> connection) {
-        this(connection, DEFAULT_NAME_PREFIX);
-    }
-
-    /**
-     * @param connection supplies the transaction's connection, or {@code null} when none is bound
-     * @param namePrefix prefix for the generated savepoint names
-     */
-    public JdbcSavepointManager(Supplier<Connection> connection, String namePrefix) {
         this.connection = Objects.requireNonNull(connection, "connection must not be null");
-        this.namePrefix = Objects.requireNonNull(namePrefix, "namePrefix must not be null");
-    }
-
-    /** A manager with the default name prefix. */
-    public static JdbcSavepointManager over(Supplier<Connection> connection) {
-        return new JdbcSavepointManager(connection);
     }
 
     @Override
     public TransactionSavepoint createSavepoint() {
-        String name = namePrefix + counter.incrementAndGet();
+        String name = NAME_PREFIX + counter.incrementAndGet();
         try {
             return new JdbcSavepoint(connected().setSavepoint(name), name);
         } catch (SQLException ex) {
@@ -117,7 +102,7 @@ public final class JdbcSavepointManager implements SavepointManager {
         return bound;
     }
 
-    private static java.sql.Savepoint jdbcSavepoint(TransactionSavepoint savepoint) {
+    private static Savepoint jdbcSavepoint(TransactionSavepoint savepoint) {
         if (savepoint instanceof JdbcSavepoint jdbc) {
             return jdbc.jdbcSavepoint();
         }

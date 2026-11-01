@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * replacement observer keeps the original observer's declared type and qualifiers.
  */
 @ExtendWith(WeldJunit5Extension.class)
-class QualifiedEventReplayTest {
+class QualifiedEventDispatchTest {
 
     @WeldSetup
     public WeldInitiator weld = WeldInitiator.from(

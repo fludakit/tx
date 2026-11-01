@@ -1,14 +1,10 @@
 package io.github.fludakit.tx.cdi;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import jakarta.enterprise.event.Observes;
-import jakarta.enterprise.event.Reception;
 import jakarta.enterprise.event.TransactionPhase;
 import jakarta.enterprise.inject.spi.AfterBeanDiscovery;
 import jakarta.enterprise.inject.spi.AnnotatedType;
@@ -17,7 +13,6 @@ import jakarta.enterprise.inject.spi.ObserverMethod;
 import jakarta.enterprise.inject.spi.ProcessAnnotatedType;
 import jakarta.enterprise.inject.spi.ProcessObserverMethod;
 import jakarta.inject.Singleton;
-import jakarta.interceptor.Interceptor;
 
 /**
  * Portable extension that wires {@code jakarta.transaction.Transactional} to the CDI container:

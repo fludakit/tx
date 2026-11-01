@@ -13,11 +13,6 @@ import jakarta.transaction.Transactional;
 @ApplicationScoped
 public class ConcreteService extends AbstractTxService {
 
-    @Override
-    public boolean active() {
-        return super.active();
-    }
-
     @Transactional(Transactional.TxType.NOT_SUPPORTED)
     public boolean notSupported() {
         TransactionStatus<?> status = TransactionStatusHolder.get();

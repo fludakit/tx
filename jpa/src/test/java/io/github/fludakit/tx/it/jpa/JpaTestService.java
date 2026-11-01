@@ -4,7 +4,6 @@ import io.github.fludakit.tx.jpa.JpaHelper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
 import jakarta.transaction.Transactional;
 
 import javax.sql.DataSource;
@@ -13,9 +12,6 @@ import java.sql.PreparedStatement;
 
 @ApplicationScoped
 public class JpaTestService {
-
-    @Inject
-    private EntityManagerFactory emf;
 
     @Inject
     private DataSource dataSource;

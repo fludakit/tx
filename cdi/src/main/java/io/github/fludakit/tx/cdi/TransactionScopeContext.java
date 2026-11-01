@@ -4,6 +4,7 @@ import io.github.fludakit.tx.TransactionStatus;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.support.TransactionStatusHolder;
 
+import jakarta.enterprise.context.spi.Context;
 import jakarta.enterprise.context.spi.Contextual;
 import jakarta.enterprise.context.spi.CreationalContext;
 import jakarta.transaction.TransactionScoped;
@@ -11,10 +12,11 @@ import jakarta.transaction.TransactionScoped;
 import java.lang.annotation.Annotation;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
- * CDI {@link jakarta.enterprise.context.spi.Context} implementation for
- * {@link TransactionScoped @TransactionScoped} beans.
+ * CDI {@link Context} implementation for {@link TransactionScoped @TransactionScoped} beans.
  *
  * <p>Bean instances live in the current {@link TransactionStatus}, so their lifecycle is tied to
  * the transaction: the store is created on first access and destroyed when the transaction
@@ -66,7 +68,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * @see TransactionScoped
  * @see TransactionalCdiExtension
  */
-public class TransactionScopeContext implements jakarta.enterprise.context.spi.Context {
+public class TransactionScopeContext implements Context {
+
+    private static final Logger LOG = Logger.getLogger(TransactionScopeContext.class.getName());
 
     @Override
     public Class<? extends Annotation> getScope() {
@@ -157,8 +161,7 @@ public class TransactionScopeContext implements jakarta.enterprise.context.spi.C
             try {
                 info.contextual.destroy(info.instance, info.creationalContext);
             } catch (Exception e) {
-                java.util.logging.Logger.getLogger(TransactionScopeContext.class.getName())
-                        .warning("Failed to destroy @TransactionScoped bean: " + e.getMessage());
+                LOG.log(Level.WARNING, "Failed to destroy @TransactionScoped bean", e);
             }
         }
 
