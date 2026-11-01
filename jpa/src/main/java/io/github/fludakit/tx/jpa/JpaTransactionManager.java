@@ -36,9 +36,37 @@ import jakarta.persistence.PersistenceException;
  * <p>The manager is built either around an existing factory, or — the preferred form when the
  * application already owns a pool — from a persistence unit name plus that {@link DataSource}:
  * {@code new JpaTransactionManager("myPU", dataSource)} creates the factory through
- * {@link JpaBootstrap} on the same pool the application's JDBC code uses, so callers never pass
+ * {@link JpaBootstrap} on the pool the application's JDBC code draws from, so callers never pass
  * the factory and the pool twice. A factory created this way is owned by the manager and closed by
  * {@link #close()}; one passed in by the caller is not.</p>
+ *
+ * <h2>Pass the raw pool, not the transaction-aware proxy</h2>
+ * <p>The {@link DataSource} handed to this manager is the connection pool itself, never a
+ * {@code io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy}. This manager does not open
+ * connections — the persistence provider does — so there is nothing for that proxy to route. The
+ * sharing runs the other way: after {@code EntityTransaction.begin()}, {@link #doBegin} extracts
+ * the provider's JDBC {@link Connection} and binds it as a {@code Connection.class} attribute,
+ * which is what the proxy resolves for application JDBC code.</p>
+ *
+ * <p>A provider that obtained its connection <em>through</em> the proxy would receive the proxy's
+ * close-suppressing view, so its {@code close()} would return nothing to the pool, and the proxy's
+ * {@code beforeCommit} would commit the very connection this manager then commits again. Expose
+ * the proxy to application code instead, over the same pool the persistence unit was built on:</p>
+ *
+ * <pre>{@code
+ * HikariDataSource pool = new HikariDataSource(config);
+ *
+ * // persistence provider side: the raw pool
+ * JpaTransactionManager txManager = new JpaTransactionManager("myPU", pool);
+ *
+ * // application side: a view of the same pool whose connections join the transaction
+ * DataSource appDataSource = new TransactionAwareDataSourceProxy(pool);
+ * }</pre>
+ *
+ * <p>Mixed JDBC/JPA work shares one transaction because the manager binds the provider's
+ * connection; only the arrangement above leaves the provider in charge of that connection's
+ * lifecycle. Plain JDBC on it still runs behind the persistence context, so flush the
+ * {@link EntityManager} before the JDBC work when ordering matters.</p>
  *
  * <h2>Savepoints</h2>
  * <p>{@code NESTED} sections use JDBC savepoints over the extracted connection. Flush the
@@ -76,11 +104,13 @@ public class JpaTransactionManager extends AbstractTransactionOperations<EntityM
      * Creates the {@link EntityManagerFactory} for the persistence unit over the given pool.
      *
      * <p>The factory is created through {@link JpaBootstrap#create(String, DataSource)}, so the
-     * persistence unit's {@code nonJtaDataSource} is this exact {@link DataSource} instance — the
-     * same one the application's JDBC code uses.</p>
+     * persistence unit's {@code nonJtaDataSource} is this exact {@link DataSource} instance. The
+     * application's JDBC code reaches the same pool through its own
+     * {@code TransactionAwareDataSourceProxy}, which joins the transaction this manager starts —
+     * see the class description for why the proxy itself must not be passed here.</p>
      *
      * @param persistenceUnitName the persistence unit name ({@code persistence.xml})
-     * @param dataSource          the application's DataSource, shared with JDBC code
+     * @param dataSource          the raw connection pool the persistence unit connects from
      */
     public JpaTransactionManager(String persistenceUnitName, DataSource dataSource) {
         this(persistenceUnitName, dataSource, Map.of());
@@ -91,7 +121,7 @@ public class JpaTransactionManager extends AbstractTransactionOperations<EntityM
      * (dialect, schema generation, vendor keys).
      *
      * @param persistenceUnitName the persistence unit name ({@code persistence.xml})
-     * @param dataSource          the application's DataSource, shared with JDBC code
+     * @param dataSource          the raw connection pool the persistence unit connects from
      * @param properties          additional provider properties, added after the DataSource binding
      */
     public JpaTransactionManager(String persistenceUnitName, DataSource dataSource,
