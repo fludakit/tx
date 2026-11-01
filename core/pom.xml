@@ -22,6 +22,10 @@
             <groupId>jakarta.transaction</groupId>
             <artifactId>jakarta.transaction-api</artifactId>
         </dependency>
+        <!--
+          Not used by this module's code: jakarta.transaction statically requires jakarta.cdi, so
+          jdeps needs it on the module path when moditect generates our module-info.
+        -->
         <dependency>
             <groupId>jakarta.enterprise</groupId>
             <artifactId>jakarta.enterprise.cdi-api</artifactId>
