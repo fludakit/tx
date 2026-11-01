@@ -32,15 +32,14 @@ import java.util.logging.Logger;
  * disappears with the transaction either way — so the manager logs and continues instead of
  * failing a nested commit the driver already accepted.</p>
  *
- * <p>Savepoint names come from a per-manager counter and carry a fixed prefix, so several
- * managers over the same connection cannot collide and a failing section is easy to spot in a
- * driver log.</p>
+ * <p>Savepoint names come from a per-manager counter and carry a fixed prefix, so the savepoints
+ * this manager creates are recognisable in a driver log.</p>
  */
 public final class JdbcSavepointManager implements SavepointManager {
 
     private static final Logger LOG = Logger.getLogger(JdbcSavepointManager.class.getName());
 
-    // Names a savepoint so a conflicting name from another manager is recognisable in a driver log
+    // Marks our savepoints so they are recognisable in a driver log
     private static final String NAME_PREFIX = "fluda_sp_";
 
     // Message SQL Server (and a few other drivers) report from releaseSavepoint

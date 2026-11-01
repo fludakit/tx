@@ -14,6 +14,10 @@ package io.github.fludakit.tx;
  */
 public interface TransactionSavepoint {
 
-    /** The implementation-assigned name of this savepoint. */
+    /**
+     * The implementation-assigned name of this savepoint.
+     *
+     * @return the savepoint name
+     */
     String name();
 }

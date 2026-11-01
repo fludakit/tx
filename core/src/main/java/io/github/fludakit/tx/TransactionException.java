@@ -13,10 +13,21 @@ import jakarta.transaction.TransactionalException;
  */
 public class TransactionException extends TransactionalException {
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     */
     public TransactionException(String message) {
         super(message, null);
     }
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     * @param cause   the failure that caused it
+     */
     public TransactionException(String message, Throwable cause) {
         super(message, cause);
     }

@@ -128,7 +128,7 @@ class TransactionStatusHolderTest {
     // --- helpers -------------------------------------------------------------
 
     private static DefaultTransactionStatus<String> transaction() {
-        return DefaultTransactionStatus.newTransaction(TransactionDefinition.DEFAULT, null);
+        return DefaultTransactionStatus.newTransaction(TransactionDefinition.DEFAULT);
     }
 
     private static void await(CountDownLatch latch) {

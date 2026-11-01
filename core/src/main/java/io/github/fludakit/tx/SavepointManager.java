@@ -13,7 +13,7 @@ package io.github.fludakit.tx;
  * manager gets nested transactions for free. Direct use is for advanced cases only.</p>
  *
  * @see TransactionStatus#createSavepoint()
- * @see jakarta.transaction.Transactional.TxType#NESTED
+ * @see Propagation#NESTED
  */
 public interface SavepointManager {
 

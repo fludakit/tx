@@ -11,13 +11,12 @@ import java.util.Set;
 import jakarta.transaction.Transactional;
 
 /**
- * The transaction attributes resolved for one bean class, computed once at deployment time by
- * {@link TransactionalCdiExtension}.
+ * The transaction attributes resolved for one bean class.
  *
- * <p>{@link TransactionalInterceptor} used to walk superclasses and interfaces on every
- * invocation to find the effective {@code @Transactional}. That resolution is a deployment-time
- * concern — the type graph cannot change while the application runs — so it happens here once and
- * the interceptor only dispatches on the result.</p>
+ * <p>{@link TransactionalCdiExtension} resolves these for every annotated type at deployment
+ * time; {@link TransactionalMetadataRegistry} applies the same resolution lazily, and caches it,
+ * for a class the extension never saw. Resolution walks superclasses and interfaces to find the
+ * effective {@code @Transactional}, so it runs once per class instead of once per invocation.</p>
  *
  * <h2>Resolution Rules</h2>
  * <ol>
@@ -28,8 +27,7 @@ import jakarta.transaction.Transactional;
  *       subclass or near interface shadows one further up the hierarchy.</li>
  * </ol>
  *
- * <p>Instances are immutable and shared by every invocation of the bean, so the interceptor's
- * hot path is a single map lookup.</p>
+ * <p>Instances are immutable and shared by every invocation of the bean.</p>
  */
 final class TransactionalMetadata {
 

@@ -7,8 +7,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Deployment-time index of the {@link TransactionalMetadata} resolved by
- * {@link TransactionalCdiExtension}, keyed by bean class.
+ * Cache of the {@link TransactionalMetadata} for bean classes, keyed by class and seeded with what
+ * {@link TransactionalCdiExtension} resolved at deployment.
  *
  * <p>Registered as a singleton bean so {@link TransactionalInterceptor} can look the metadata up
  * instead of resolving annotations on every invocation.</p>

@@ -112,6 +112,7 @@ public class JpaTransactionManager extends AbstractTransactionOperations<EntityM
         this.ownsEntityManagerFactory = ownsEntityManagerFactory;
     }
 
+    /** The factory this manager creates {@link EntityManager}s from. */
     public EntityManagerFactory getEntityManagerFactory() {
         return entityManagerFactory;
     }
