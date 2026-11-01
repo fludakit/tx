@@ -39,7 +39,8 @@
  *
  * <h2>Declarative usage</h2>
  * <p>With the {@code fluda-tx-cdi} module on the classpath, the standard Jakarta annotation
- * works unchanged. The interceptor resolves the definition once at deployment and drives the
+ * works unchanged. The interceptor uses the definition precomputed at deployment — resolving and
+ * caching it on first use for a class the extension never saw — and drives the
  * same {@code execute} path, so the two front-ends share one lifecycle and one rollback rule
  * set.</p>
  * <pre>{@code
