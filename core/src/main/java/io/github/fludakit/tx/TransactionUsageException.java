@@ -7,10 +7,21 @@ package io.github.fludakit.tx;
  */
 public class TransactionUsageException extends TransactionException {
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     */
     public TransactionUsageException(String message) {
         super(message);
     }
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     * @param cause   the failure that caused it
+     */
     public TransactionUsageException(String message, Throwable cause) {
         super(message, cause);
     }

@@ -30,10 +30,18 @@ package io.github.fludakit.tx;
  */
 public interface TransactionStatus<T> {
 
-    /** The definition this transaction was begun (or joined) with. */
+    /**
+     * The definition this transaction was begun (or joined) with.
+     *
+     * @return the transaction attributes
+     */
     TransactionDefinition getDefinition();
 
-    /** The resource the transaction is bound to, or {@code null} outside an actual transaction. */
+    /**
+     * The resource the transaction is bound to, or {@code null} outside an actual transaction.
+     *
+     * @return the bound resource, or {@code null}
+     */
     T getResource();
 
     /**
@@ -42,6 +50,10 @@ public interface TransactionStatus<T> {
      * <p>Reads stay available after completion: completion callbacks
      * ({@code afterCommit}, {@code afterCompletion}) still need to reach per-transaction state,
      * such as a {@code @TransactionScoped} bean store that has to be destroyed.</p>
+     *
+     * @param type the attribute type
+     * @param <A>  the attribute type
+     * @return the bound value, or {@code null} when none is set
      */
     <A> A getAttribute(Class<A> type);
 
@@ -52,29 +64,55 @@ public interface TransactionStatus<T> {
      * <p>Atomic on purpose: two threads joining the same transaction must not both install (and
      * later both release) a per-transaction object.</p>
      *
-     * @param type the attribute type
+     * @param type  the attribute type
      * @param value the value to bind
+     * @param <A>   the attribute type
      * @return {@code null} if this call bound the value, otherwise the value already bound
      * @throws IllegalTransactionStateException if the status is completed
      */
     <A> A putAttributeIfAbsent(Class<A> type, A value);
 
-    /** Whether this status belongs to a transaction that was begun here (not joined). */
+    /**
+     * Whether this status belongs to a transaction that was begun here (not joined).
+     *
+     * @return {@code true} if completion belongs to the caller
+     */
     boolean isNewTransaction();
 
-    /** Whether this status scopes a savepoint section inside an outer transaction. */
+    /**
+     * Whether this status scopes a savepoint section inside an outer transaction.
+     *
+     * @return {@code true} for a nested status
+     */
     boolean isNestedTransaction();
 
-    /** Whether an actual resource transaction is running — {@code false} for the no-transaction status. */
+    /**
+     * Whether an actual resource transaction is running — {@code false} for the no-transaction
+     * status.
+     *
+     * @return {@code true} if a resource transaction is active
+     */
     boolean isActualTransactionActive();
 
-    /** Whether the transaction is marked rollback-only, locally or by a participant. */
+    /**
+     * Whether the transaction is marked rollback-only, locally or by a participant.
+     *
+     * @return {@code true} if either rollback-only flag is set
+     */
     boolean isRollbackOnly();
 
-    /** Whether the boundary that holds this status marked it rollback-only. */
+    /**
+     * Whether the boundary that holds this status marked it rollback-only.
+     *
+     * @return {@code true} if the local flag is set
+     */
     boolean isLocalRollbackOnly();
 
-    /** Whether a participant asked for a rollback, so the boundary must not commit. */
+    /**
+     * Whether a participant asked for a rollback, so the boundary must not commit.
+     *
+     * @return {@code true} if the global flag is set
+     */
     boolean isGlobalRollbackOnly();
 
     /**
@@ -85,15 +123,24 @@ public interface TransactionStatus<T> {
      */
     void setRollbackOnly();
 
-    /** Whether the transaction already completed (committed, rolled back, or unknown). */
+    /**
+     * Whether the transaction already completed (committed, rolled back, or unknown).
+     *
+     * @return {@code true} once completion ran
+     */
     boolean isCompleted();
 
-    /** Whether the underlying manager supports savepoints for this transaction. */
+    /**
+     * Whether the underlying manager supports savepoints for this transaction.
+     *
+     * @return {@code true} if savepoint operations are available
+     */
     boolean isSavepointSupported();
 
     /**
      * Creates a savepoint at the transaction's current point.
      *
+     * @return the savepoint handle
      * @throws NestedTransactionNotSupportedException if savepoints are not supported
      */
     TransactionSavepoint createSavepoint();

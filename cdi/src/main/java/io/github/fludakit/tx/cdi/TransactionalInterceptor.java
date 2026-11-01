@@ -20,8 +20,8 @@ import jakarta.transaction.Transactional;
  * <p>Bound to the internal {@link TransactionalBinding} marker (added by
  * {@link TransactionalCdiExtension} to every {@code @Transactional} type) so a single interceptor
  * matches all six {@code TxType} values. The annotation-to-{@link TransactionDefinition}
- * resolution happens once at deployment in the extension; this interceptor only looks the
- * precomputed definition up.</p>
+ * resolution is precomputed at deployment by the extension and cached in
+ * {@link TransactionalMetadataRegistry}; this interceptor only looks the definition up.</p>
  *
  * <p>It contributes nothing else: transactional CDI events are dispatched by
  * {@link TransactionEventDispatcher}, which installs itself when the first event is fired. That

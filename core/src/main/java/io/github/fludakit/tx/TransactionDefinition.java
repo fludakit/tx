@@ -45,11 +45,27 @@ public record TransactionDefinition(Propagation propagation,
     public static final TransactionDefinition READ_ONLY =
             new TransactionDefinition(Propagation.REQUIRED, NO_EXCEPTIONS, NO_EXCEPTIONS, true);
 
+    /**
+     * Defensive-copies the rule arrays so a caller cannot mutate a definition after the fact; a
+     * {@code null} array means "no rules".
+     *
+     * @param propagation    how the boundary relates to a running transaction
+     * @param rollbackOn     exception types that force a rollback, or {@code null}
+     * @param dontRollbackOn exception types that force a commit, or {@code null}
+     * @param readOnly       the read-only hint
+     */
     public TransactionDefinition {
         rollbackOn = rollbackOn == null ? NO_EXCEPTIONS : rollbackOn.clone();
         dontRollbackOn = dontRollbackOn == null ? NO_EXCEPTIONS : dontRollbackOn.clone();
     }
 
+    /**
+     * A writable definition with no explicit rollback rules.
+     *
+     * @param propagation    how the boundary relates to a running transaction
+     * @param rollbackOn     exception types that force a rollback, or {@code null}
+     * @param dontRollbackOn exception types that force a commit, or {@code null}
+     */
     public TransactionDefinition(Propagation propagation,
                                  Class<? extends Throwable>[] rollbackOn,
                                  Class<? extends Throwable>[] dontRollbackOn) {
@@ -69,22 +85,40 @@ public record TransactionDefinition(Propagation propagation,
                 false);
     }
 
-    /** The default definition ({@code REQUIRED}, no rollback rules, writable). */
+    /**
+     * The default definition ({@code REQUIRED}, no rollback rules, writable).
+     *
+     * @return {@link #DEFAULT}
+     */
     public static TransactionDefinition withDefaults() {
         return DEFAULT;
     }
 
-    /** A read-only definition with {@code REQUIRED} propagation. */
+    /**
+     * A read-only definition with {@code REQUIRED} propagation.
+     *
+     * @return {@link #READ_ONLY}
+     */
     public static TransactionDefinition readOnlyDefinition() {
         return READ_ONLY;
     }
 
-    /** A copy of this definition with the given propagation behaviour. */
+    /**
+     * A copy of this definition with the given propagation behaviour.
+     *
+     * @param propagation the propagation behaviour to use
+     * @return a copy with {@code propagation} applied
+     */
     public TransactionDefinition withPropagation(Propagation propagation) {
         return new TransactionDefinition(propagation, rollbackOn, dontRollbackOn, readOnly);
     }
 
-    /** A copy of this definition with the given read-only hint. */
+    /**
+     * A copy of this definition with the given read-only hint.
+     *
+     * @param readOnly the read-only hint to use
+     * @return a copy with {@code readOnly} applied
+     */
     public TransactionDefinition withReadOnly(boolean readOnly) {
         return new TransactionDefinition(propagation, rollbackOn, dontRollbackOn, readOnly);
     }

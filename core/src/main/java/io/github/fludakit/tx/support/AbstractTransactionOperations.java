@@ -53,6 +53,10 @@ import java.util.logging.Logger;
  */
 public abstract class AbstractTransactionOperations<T> implements TransactionManager<T> {
 
+    /** Creates a template; a subclass supplies the resource primitives. */
+    protected AbstractTransactionOperations() {
+    }
+
     private final Logger logger = Logger.getLogger(getClass().getName());
 
     // --- resource primitives -------------------------------------------------
@@ -378,7 +382,7 @@ public abstract class AbstractTransactionOperations<T> implements TransactionMan
     // --- status creation -----------------------------------------------------
 
     private DefaultTransactionStatus<T> createTransactionStatus(TransactionDefinition definition) {
-        DefaultTransactionStatus<T> status = DefaultTransactionStatus.newTransaction(definition, null);
+        DefaultTransactionStatus<T> status = DefaultTransactionStatus.newTransaction(definition);
         status.setSavepointManager(newSavepointManager(status));
         return status;
     }

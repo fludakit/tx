@@ -58,27 +58,54 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
 
     // --- factories ---
 
-    /** A status for a transaction this boundary begins. */
-    public static <T> DefaultTransactionStatus<T> newTransaction(TransactionDefinition definition,
-                                                                 SavepointManager savepointManager) {
-        NewTransactionStatus<T> status = new NewTransactionStatus<>(definition);
-        status.setSavepointManager(savepointManager);
-        return status;
+    /**
+     * A status for a transaction this boundary begins.
+     *
+     * <p>Savepoint support is attached afterwards, not at creation: the manager's
+     * {@code newSavepointManager(DefaultTransactionStatus)} hook needs the status itself, so
+     * {@link AbstractTransactionOperations} creates the status first and then hands its manager the
+     * capability.</p>
+     *
+     * @param definition the attributes of the transaction being begun
+     * @param <T>        the resource type the manager binds
+     * @return a fresh status that owns its transaction
+     */
+    public static <T> DefaultTransactionStatus<T> newTransaction(TransactionDefinition definition) {
+        return new NewTransactionStatus<>(definition);
     }
 
-    /** A status for a participant that reuses the running transaction. */
+    /**
+     * A status for a participant that reuses the running transaction.
+     *
+     * @param enclosing  the status of the transaction being joined
+     * @param definition the attributes of the joining call
+     * @param <T>        the resource type the manager binds
+     * @return a participant view over {@code enclosing}
+     */
     public static <T> DefaultTransactionStatus<T> joined(DefaultTransactionStatus<T> enclosing,
                                                          TransactionDefinition definition) {
         return new JoinedTransactionStatus<>(definition, enclosing);
     }
 
-    /** A status for a savepoint-scoped section inside the running transaction. */
+    /**
+     * A status for a savepoint-scoped section inside the running transaction.
+     *
+     * @param enclosing  the status of the transaction being nested into
+     * @param definition the attributes of the nested section
+     * @param <T>        the resource type the manager binds
+     * @return a nested view over {@code enclosing}
+     */
     public static <T> DefaultTransactionStatus<T> nested(DefaultTransactionStatus<T> enclosing,
                                                          TransactionDefinition definition) {
         return new NestedTransactionStatus<>(definition, enclosing);
     }
 
-    /** The shared status for a scope without a transaction. */
+    /**
+     * The shared status for a scope without a transaction.
+     *
+     * @param <T> the resource type the manager binds
+     * @return the shared no-transaction status
+     */
     public static <T> DefaultTransactionStatus<T> noTransaction() {
         return NoTransactionStatus.instance();
     }
@@ -164,7 +191,11 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
         return completed;
     }
 
-    /** The outcome once completed, or {@code null} while active. */
+    /**
+     * The outcome once completed, or {@code null} while active.
+     *
+     * @return the completion outcome, or {@code null} while the transaction is active
+     */
     public TransactionSynchronization.Status getCompletionStatus() {
         return completionStatus;
     }
@@ -259,6 +290,11 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
 
     // --- guards ---
 
+    /**
+     * Fails if the transaction has already completed.
+     *
+     * @param operation the operation being attempted, used in the failure message
+     */
     protected void requireLive(String operation) {
         if (completed) {
             throw new IllegalTransactionStateException(

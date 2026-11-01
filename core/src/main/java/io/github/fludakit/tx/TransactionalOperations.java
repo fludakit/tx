@@ -46,12 +46,26 @@ public interface TransactionalOperations<T> {
      */
     <R> R execute(TransactionDefinition definition, TransactionExecution<T, R> execution) throws Exception;
 
-    /** Executes a unit of work with {@link TransactionDefinition#withDefaults()}. */
+    /**
+     * Executes a unit of work with {@link TransactionDefinition#withDefaults()}.
+     *
+     * @param execution the unit of work
+     * @param <R>       the result type
+     * @return the result of the unit of work
+     * @throws Exception the failure thrown by the unit of work, unchanged
+     */
     default <R> R execute(TransactionExecution<T, R> execution) throws Exception {
         return execute(TransactionDefinition.withDefaults(), execution);
     }
 
-    /** Executes a unit of work with a read-only definition. */
+    /**
+     * Executes a unit of work with a read-only definition.
+     *
+     * @param execution the unit of work
+     * @param <R>       the result type
+     * @return the result of the unit of work
+     * @throws Exception the failure thrown by the unit of work, unchanged
+     */
     default <R> R executeRead(TransactionExecution<T, R> execution) throws Exception {
         return execute(TransactionDefinition.readOnlyDefinition(), execution);
     }

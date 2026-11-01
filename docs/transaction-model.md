@@ -296,8 +296,9 @@ the persistence unit cannot accidentally connect to a different pool. The manage
 `AutoCloseable` and closes the factory only when it created it; a factory passed in stays the
 caller's.
 
-**cdi** — the interceptor resolves the precomputed definition and calls
-`manager.execute(definition, ...)`; everything else is deployment-time wiring. The
+**cdi** — the interceptor looks up the definition the extension precomputed at deployment
+(resolving and caching it on first use for a class the extension never saw) and calls
+`manager.execute(definition, ...)`; the rest is container wiring. The
 `TransactionEventDispatcher` described above installs itself when the first transactional event is
 fired, so the interceptor carries no event code at all. `TransactionScopeContext` implements
 `@TransactionScoped` over the status attribute slots.

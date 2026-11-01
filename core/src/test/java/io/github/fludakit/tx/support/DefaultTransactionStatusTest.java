@@ -34,7 +34,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void newTransaction_isTheBoundarysOwn() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
 
         assertSame(DEFINITION, status.getDefinition());
         assertTrue(status.isNewTransaction());
@@ -49,7 +49,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void newTransaction_attributesAreTypedAndFirstWriterWins() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
 
         assertNull(status.putAttributeIfAbsent(String.class, "first"));
         assertEquals("first", status.getAttribute(String.class));
@@ -60,7 +60,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void newTransaction_rollbackOnlyStartsLocal() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
 
         status.setRollbackOnly();
 
@@ -72,7 +72,8 @@ class DefaultTransactionStatusTest {
     @Test
     void newTransaction_savepointsDelegateToTheManager() {
         RecordingSavepointManager savepoints = new RecordingSavepointManager();
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, savepoints);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
+        status.setSavepointManager(savepoints);
 
         assertTrue(status.isSavepointSupported());
 
@@ -88,7 +89,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void newTransaction_withoutSavepointSupport_rejectsSavepointOperations() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
         TransactionSavepoint savepoint = new RecordingSavepointManager().createSavepoint();
 
         assertFalse(status.isSavepointSupported());
@@ -101,7 +102,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void completedStatus_rejectsEveryMutation() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
         status.markCompleted(TransactionSynchronization.Status.COMMITTED);
 
         assertTrue(status.isCompleted());
@@ -119,7 +120,7 @@ class DefaultTransactionStatusTest {
 
     @Test
     void completedStatus_keepsAttributesReadableForCompletionCallbacks() {
-        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION, null);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
         status.putAttributeIfAbsent(String.class, "value");
 
         status.markCompleted(TransactionSynchronization.Status.COMMITTED);
@@ -313,8 +314,8 @@ class DefaultTransactionStatusTest {
     }
 
     private static DefaultTransactionStatus<String> startedTransaction(SavepointManager savepoints) {
-        DefaultTransactionStatus<String> status =
-                DefaultTransactionStatus.newTransaction(DEFINITION, savepoints);
+        DefaultTransactionStatus<String> status = DefaultTransactionStatus.newTransaction(DEFINITION);
+        status.setSavepointManager(savepoints);
         status.setResource("resource");
         status.putAttributeIfAbsent(String.class, "attribute");
         return status;

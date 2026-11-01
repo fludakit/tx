@@ -6,10 +6,21 @@ package io.github.fludakit.tx;
  */
 public class UnexpectedRollbackException extends TransactionException {
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     */
     public UnexpectedRollbackException(String message) {
         super(message);
     }
 
+    /**
+     * Creates the exception.
+     *
+     * @param message the detail message
+     * @param cause   the failure that caused it
+     */
     public UnexpectedRollbackException(String message, Throwable cause) {
         super(message, cause);
     }
