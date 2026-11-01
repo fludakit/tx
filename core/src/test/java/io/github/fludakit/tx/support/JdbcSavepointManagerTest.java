@@ -1,8 +1,8 @@
 package io.github.fludakit.tx.support;
 
-import io.github.fludakit.tx.JdbcSavepoint;
 import io.github.fludakit.tx.NestedTransactionNotSupportedException;
 import io.github.fludakit.tx.TransactionSavepoint;
+import io.github.fludakit.tx.TransactionSystemException;
 
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +28,7 @@ class JdbcSavepointManagerTest {
     @Test
     void createsRollsBackAndReleasesOnTheBoundConnection() {
         StubConnection connection = new StubConnection(null);
-        JdbcSavepointManager manager = JdbcSavepointManager.over(connection::proxy);
+        JdbcSavepointManager manager = new JdbcSavepointManager(connection::proxy);
 
         TransactionSavepoint savepoint = manager.createSavepoint();
         manager.rollbackToSavepoint(savepoint);
@@ -40,7 +40,7 @@ class JdbcSavepointManagerTest {
     @Test
     void generatesDistinctNames() {
         StubConnection connection = new StubConnection(null);
-        JdbcSavepointManager manager = JdbcSavepointManager.over(connection::proxy);
+        JdbcSavepointManager manager = new JdbcSavepointManager(connection::proxy);
 
         manager.createSavepoint();
         manager.createSavepoint();
@@ -51,7 +51,7 @@ class JdbcSavepointManagerTest {
     @Test
     void toleratesADriverThatDoesNotSupportReleasingSavepoints() {
         StubConnection connection = new StubConnection(new SQLFeatureNotSupportedException("not supported"));
-        JdbcSavepointManager manager = JdbcSavepointManager.over(connection::proxy);
+        JdbcSavepointManager manager = new JdbcSavepointManager(connection::proxy);
 
         manager.releaseSavepoint(new JdbcSavepoint(newSavepoint(), "fluda_sp_1"));
 
@@ -62,7 +62,7 @@ class JdbcSavepointManagerTest {
     void toleratesTheMessageSomeDriversUseForAnUnsupportedRelease() {
         StubConnection connection = new StubConnection(
                 new SQLException("This operation is not supported."));
-        JdbcSavepointManager manager = JdbcSavepointManager.over(connection::proxy);
+        JdbcSavepointManager manager = new JdbcSavepointManager(connection::proxy);
 
         manager.releaseSavepoint(new JdbcSavepoint(newSavepoint(), "fluda_sp_1"));
 
@@ -72,16 +72,16 @@ class JdbcSavepointManagerTest {
     @Test
     void failsOnARealReleaseFailure() {
         StubConnection connection = new StubConnection(new SQLException("connection is gone"));
-        JdbcSavepointManager manager = JdbcSavepointManager.over(connection::proxy);
+        JdbcSavepointManager manager = new JdbcSavepointManager(connection::proxy);
         TransactionSavepoint savepoint = new JdbcSavepoint(newSavepoint(), "fluda_sp_1");
 
-        assertThrows(io.github.fludakit.tx.TransactionSystemException.class,
+        assertThrows(TransactionSystemException.class,
                 () -> manager.releaseSavepoint(savepoint));
     }
 
     @Test
     void savepointsAreUnavailableWithoutABoundConnection() {
-        JdbcSavepointManager manager = JdbcSavepointManager.over(() -> null);
+        JdbcSavepointManager manager = new JdbcSavepointManager(() -> null);
 
         assertThrows(NestedTransactionNotSupportedException.class, manager::createSavepoint);
     }

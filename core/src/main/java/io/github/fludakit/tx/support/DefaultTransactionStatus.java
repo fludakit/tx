@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.IllegalTransactionStateException;
+import io.github.fludakit.tx.NestedTransactionNotSupportedException;
 import io.github.fludakit.tx.SavepointManager;
 import io.github.fludakit.tx.TransactionDefinition;
 import io.github.fludakit.tx.TransactionSavepoint;
@@ -188,7 +189,7 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
     public TransactionSavepoint createSavepoint() {
         requireLive("createSavepoint");
         if (savepointManager == null) {
-            throw new io.github.fludakit.tx.NestedTransactionNotSupportedException(
+            throw new NestedTransactionNotSupportedException(
                     "This transaction has no savepoint support (the manager supplied no SavepointManager)");
         }
         return savepointManager.createSavepoint();
@@ -204,9 +205,9 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
         requireSavepoints().releaseSavepoint(savepoint);
     }
 
-    SavepointManager requireSavepoints() {
+    private SavepointManager requireSavepoints() {
         if (savepointManager == null) {
-            throw new io.github.fludakit.tx.NestedTransactionNotSupportedException(
+            throw new NestedTransactionNotSupportedException(
                     "This transaction has no savepoint support (the manager supplied no SavepointManager)");
         }
         return savepointManager;
@@ -517,17 +518,17 @@ public abstract class DefaultTransactionStatus<T> implements TransactionStatus<T
 
         @Override
         public TransactionSavepoint createSavepoint() {
-            throw new io.github.fludakit.tx.NestedTransactionNotSupportedException("No transaction is active");
+            throw new NestedTransactionNotSupportedException("No transaction is active");
         }
 
         @Override
         public void rollbackToSavepoint(TransactionSavepoint savepoint) {
-            throw new io.github.fludakit.tx.NestedTransactionNotSupportedException("No transaction is active");
+            throw new NestedTransactionNotSupportedException("No transaction is active");
         }
 
         @Override
         public void releaseSavepoint(TransactionSavepoint savepoint) {
-            throw new io.github.fludakit.tx.NestedTransactionNotSupportedException("No transaction is active");
+            throw new NestedTransactionNotSupportedException("No transaction is active");
         }
 
         @Override

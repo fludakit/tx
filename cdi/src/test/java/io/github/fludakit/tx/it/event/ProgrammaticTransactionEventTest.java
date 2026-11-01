@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Transactional observers must be driven by the transaction itself, not by the {@code @Transactional}
@@ -66,7 +67,7 @@ class ProgrammaticTransactionEventTest {
 
     @Test
     void rollbackDeliversToTheFailurePhases() {
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        assertThrows(IllegalStateException.class,
                 () -> publisher.fireAndRollback("programmatic"));
 
         assertEquals(List.of("IN_PROGRESS", "BEFORE_COMPLETION", "AFTER_FAILURE", "AFTER_COMPLETION"),

@@ -33,7 +33,7 @@ import jakarta.transaction.Transactional;
  */
 final class TransactionalMetadata {
 
-    /** Marker for a type with no {@code @Transactional} reachable from it. */
+    /** The empty metadata for a type without a reachable {@code @Transactional}. */
     private static final TransactionalMetadata NONE =
             new TransactionalMetadata(null, Map.of());
 
@@ -46,16 +46,11 @@ final class TransactionalMetadata {
         this.methodDefinitions = methodDefinitions;
     }
 
-    /** The empty metadata for a type without a reachable {@code @Transactional}. */
-    static TransactionalMetadata none() {
-        return NONE;
-    }
-
     /**
      * Resolves the transaction attributes reachable from the given bean class.
      *
      * @param beanClass the bean class registered by the container
-     * @return the resolved metadata, or {@link #none()} when nothing is annotated
+     * @return the resolved metadata, empty when nothing is annotated
      */
     static TransactionalMetadata forClass(Class<?> beanClass) {
         Transactional typeAnnotation = findTypeAnnotation(beanClass);

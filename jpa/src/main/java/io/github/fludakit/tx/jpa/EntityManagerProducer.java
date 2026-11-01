@@ -11,6 +11,7 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import javax.sql.DataSource;
 
 /**
  * CDI producer for transaction-scoped {@link EntityManager}.
@@ -55,11 +56,18 @@ import java.lang.reflect.Proxy;
  *
  *     @Produces
  *     @ApplicationScoped
- *     public TransactionManager transactionManager(DataSource ds) {
- *         return new JpaTransactionManager(emf, ds);
+ *     public TransactionManager transactionManager() {
+ *         return new JpaTransactionManager(emf);
  *     }
  * }
  * }</pre>
+ *
+ * <p>When the application already owns a pool and has no reason to build the factory itself, the
+ * manager can do both: {@code new JpaTransactionManager("myPU", ds)} creates the factory through
+ * {@link JpaBootstrap#create(String, DataSource)} over the same {@link DataSource} the JDBC code
+ * uses. A manager built this way owns the factory and closes it in
+ * {@link JpaTransactionManager#close()}; expose the factory as a bean with
+ * {@link JpaTransactionManager#getEntityManagerFactory()} when something else needs it.</p>
  *
  * <h2>Scope</h2>
  * <p>The produced {@code EntityManager} uses {@link Dependent} scope. Each injection point
