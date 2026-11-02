@@ -77,8 +77,7 @@ public class PersistenceConfigurationProducer {
     public PersistenceConfiguration persistenceConfiguration() {
         DataSource dataSource = resolveDataSource();
         PersistenceConfiguration configuration = new PersistenceConfiguration(resolvePersistenceUnitName())
-                .property(PersistenceConfiguration.JDBC_DATASOURCE, dataSource)
-                .property(JpaBootstrap.NON_JTA_DATA_SOURCE, dataSource);
+                .property(PersistenceConfiguration.JDBC_DATASOURCE, dataSource);
         for (PersistenceConfigurationCustomizer customizer : customizers) {
             customizer.customize(configuration);
         }
