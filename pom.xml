@@ -49,7 +49,7 @@
     <properties>
         <h2.version>2.5.252</h2.version>
         <hikaricp.version>7.1.0</hikaricp.version>
-        <hibernate.version>7.4.11.Final</hibernate.version>
+        <hibernate.version>7.4.14.Final</hibernate.version>
     </properties>
 
     <dependencyManagement>
