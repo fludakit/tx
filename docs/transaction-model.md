@@ -42,8 +42,8 @@ Consequences:
 |-----------------------------|----------------------------------------------------------------|-----------------|
 | `io.github.fludakit.tx`     | API: definition, status, manager, operations, savepoints, exceptions | public, application-facing |
 | `io.github.fludakit.tx.support` | Runtime: the template (`AbstractTransactionOperations`), the status implementation, the scope holder | public but internal-facing |
-| `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `TransactionAwareDataSourceProxy`    | public          |
-| `io.github.fludakit.tx.jpa`  | `JpaTransactionManager`, `JpaHelper`, `EntityManagerProducer`   | public          |
+| `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `JdbcTransactionManagerProducer`, `TransactionAwareDataSourceProxy` | public |
+| `io.github.fludakit.tx.jpa`  | `JpaTransactionManager`, `JpaHelper`, `EntityManagerProducer`, the persistence and factory producers, `PersistenceConfigurationCustomizer`, `ConnectionExtractor` | public          |
 | `io.github.fludakit.tx.cdi`  | `@Transactional` interceptor, `@TransactionScoped` context, transactional event dispatch, metadata registry | public |
 
 Dependencies point one way: `jdbc`, `jpa`, `cdi` → `core`. `core` knows nothing about JDBC,
@@ -276,25 +276,40 @@ read-only), binds it to the status, and registers a synchronization that resets 
 Savepoints map to JDBC savepoints through the shared `JdbcSavepointManager`, which also tolerates
 drivers that reject `releaseSavepoint`. `TransactionAwareDataSourceProxy` lets plain
 `dataSource.getConnection()` code join the transaction; outside one it delegates to the pool,
-credentials included.
+credentials included. `JdbcTransactionManagerProducer` builds the manager over the pool,
+preferring a `@RawDataSource` bean and rejecting a `TransactionAwareDataSourceProxy` — the manager
+must open real connections, not proxy views of the running transaction.
 
 **jpa** — `JpaTransactionManager` creates an `EntityManager`, begins its `EntityTransaction`,
 binds both the `EntityManager` and the underlying `Connection` (so mixed JDBC/JPA code shares
 one transaction), and flushes on commit. Savepoints are JDBC savepoints over the extracted
 connection, through the same `JdbcSavepointManager`.
 
-The manager is built from either an existing `EntityManagerFactory`, or — preferred when the
-application owns a pool — from a persistence unit name plus that `DataSource`:
+The manager only borrows an `EntityManagerFactory`: it never creates, owns, or closes one. Under
+CDI the container supplies the whole chain:
+
+- `PersistenceConfigurationProducer` resolves the pool the same way the JDBC producer does
+  (`@RawDataSource` first, unqualified `DataSource` second, proxy rejected), binds it as
+  `jakarta.persistence.nonJtaDataSource`, and applies every `PersistenceConfigurationCustomizer`
+  bean. A customizer supplies what only the application knows: managed classes, provider
+  properties, and optionally the persistence unit name.
+- `EntityManagerFactoryProducer` creates the factory once and closes it at shutdown.
+- `JpaTransactionManagerProducer` produces the manager over that factory; a
+  `ConnectionExtractor` bean, when declared, replaces `ConnectionExtractor.DEFAULT`.
+
+No customizer is required; without one the persistence unit is named `__defaultPU` and has no
+managed classes, which suits an application that keeps its mappings in `persistence.xml`.
+
+In plain Java, build the factory yourself and pass it in:
 
 ```java
-JpaTransactionManager txManager = new JpaTransactionManager("myPU", dataSource);
+EntityManagerFactory emf = JpaBootstrap.create("myPU", pool);
+JpaTransactionManager txManager = new JpaTransactionManager(emf);
 ```
 
-The second form creates the factory through `JpaBootstrap`, which passes the `DataSource` as
-`jakarta.persistence.nonJtaDataSource`. Callers never hand over the factory *and* the pool, and
-the persistence unit cannot accidentally connect to a different pool. The manager is
-`AutoCloseable` and closes the factory only when it created it; a factory passed in stays the
-caller's.
+`JpaBootstrap.create` passes the `DataSource` as `jakarta.persistence.nonJtaDataSource`; the
+`jakarta.persistence.dataSource` property alone is not enough, because the persistence provider
+only takes a `DataSource` instance from the non-JTA property. The factory stays the caller's.
 
 **cdi** — the interceptor looks up the definition the extension precomputed at deployment
 (resolving and caching it on first use for a class the extension never saw) and calls
@@ -302,6 +317,13 @@ caller's.
 `TransactionEventDispatcher` described above installs itself when the first transactional event is
 fired, so the interceptor carries no event code at all. `TransactionScopeContext` implements
 `@TransactionScoped` over the status attribute slots.
+
+The producers shipped with the library (`JdbcTransactionManagerProducer`,
+`PersistenceConfigurationProducer`, `EntityManagerFactoryProducer`,
+`JpaTransactionManagerProducer`) are `@Singleton` rather than application-scoped: they return
+non-proxyable objects — a pool, a factory, the concrete manager — and the application has to be
+able to inject those exact types. Declaring a single `ConnectionExtractor` bean replaces the
+default extraction strategy; declaring more than one fails at startup.
 
 ## Out of scope (on purpose)
 

@@ -38,6 +38,10 @@ public interface ConnectionExtractor {
      */
     Connection extract(EntityManager em);
 
+    /**
+     * The default extractor: Hibernate's {@code doReturningWork} when Hibernate is on the
+     * classpath, otherwise {@link EntityManager#unwrap(Class)}.
+     */
     ConnectionExtractor DEFAULT = entityManager -> {
         if (isHibernatePresent()) {
             try {

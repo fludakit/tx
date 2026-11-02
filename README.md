@@ -6,10 +6,10 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 ## Modules
 
-- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions) plus the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding.
+- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions), the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding, and the `@RawDataSource` qualifier.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
-- `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager` and `TransactionAwareDataSourceProxy`.
-- `fluda-tx-jpa`: Resource-local `JpaTransactionManager`, `JpaHelper`, and `JpaBootstrap`.
+- `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager`, its CDI producer, and `TransactionAwareDataSourceProxy`.
+- `fluda-tx-jpa`: Resource-local `JpaTransactionManager`, `JpaHelper`, `JpaBootstrap`, and the CDI producers for the `PersistenceConfiguration`, the `EntityManagerFactory`, and the transaction manager.
 
 ## Usage
 
@@ -42,7 +42,31 @@ txManager.execute(TransactionDefinition.withDefaults(), (connection, status) -> 
 `TransactionDefinition` also carries the propagation, the rollback rules, and the read-only
 hint, so the programmatic and the declarative front-ends cannot disagree.
 
-For CDI setup, transaction-phase callbacks and events, multiple DataSources, and mixing JPA with JDBC, see the [Transaction documentation](https://fludakit.github.io/documentation/tx/getting-started/).
+## CDI
+
+The producers wire the managers — and the JPA factory — from a pool bean. Qualify the pool with
+`@RawDataSource` when the default `DataSource` is a `TransactionAwareDataSourceProxy`:
+
+```java
+@Produces @RawDataSource
+public DataSource pool() {
+    return hikariDataSource;                              // the pool itself
+}
+
+@Produces
+public DataSource dataSource() {
+    return new TransactionAwareDataSourceProxy(pool());   // what application JDBC code injects
+}
+```
+
+With that, `@Inject JdbcTransactionManager` works, and on the JPA side `@Inject EntityManagerFactory`
+and `@Inject EntityManager` come from a `PersistenceConfiguration` the container builds over the
+same pool. A `PersistenceConfigurationCustomizer` bean contributes managed classes, provider
+properties, and the persistence unit name. A single `ConnectionExtractor` bean replaces the
+default connection extraction strategy.
+
+For transaction-phase callbacks and events, multiple DataSources, and mixing JPA with JDBC, see
+the [Transaction documentation](https://fludakit.github.io/documentation/tx/getting-started/).
 
 ## Building
 

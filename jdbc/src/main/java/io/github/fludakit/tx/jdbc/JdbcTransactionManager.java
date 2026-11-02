@@ -26,6 +26,30 @@ import javax.sql.DataSource;
  * use {@link #getTransactionAwareDataSource()}, whose connections join the running transaction
  * and suppress {@code close()}.</p>
  *
+ * <h2>Creating a manager</h2>
+ * <p>The only collaborator is the raw pool. Construct the manager once and reuse it; it holds no
+ * per-transaction state, only the pool it opens connections from.</p>
+ *
+ * <pre>{@code
+ * HikariDataSource pool = new HikariDataSource(config);
+ * JdbcTransactionManager txManager = new JdbcTransactionManager(pool);
+ *
+ * // what application JDBC code injects: connections join the running transaction
+ * DataSource dataSource = txManager.getTransactionAwareDataSource();
+ * }</pre>
+ *
+ * <p>Never pass a {@code TransactionAwareDataSourceProxy} to the constructor: the manager opens
+ * real connections and must not receive a proxy that would suppress their {@code close()}. Under
+ * CDI there is nothing to construct — {@code JdbcTransactionManagerProducer} resolves the pool
+ * (the {@code @RawDataSource} bean when declared, the default {@code DataSource} otherwise) and
+ * exposes the manager as a {@code @Singleton} bean, so either the concrete type or the
+ * {@code TransactionManager} interface can be injected:</p>
+ *
+ * <pre>{@code
+ * @Inject
+ * JdbcTransactionManager txManager;
+ * }</pre>
+ *
  * <h2>Savepoints</h2>
  * <p>JDBC savepoints back {@code NESTED} propagation. The capability is attached at begin time
  * and resolves the connection lazily, so it is available to every nested section of the
