@@ -50,7 +50,7 @@
  *   <li>Build the {@code EntityManagerFactory} over that pool. Under CDI the
  *       {@code PersistenceConfigurationProducer} and {@code EntityManagerFactoryProducer} do this,
  *       applying any {@code PersistenceConfigurationCustomizer} beans; in plain Java use
- *       {@code JpaBootstrap.create(unitName, pool)}.</li>
+ *       {@code Persistence.createEntityManagerFactory(unitName, properties)}.</li>
  *   <li>Create {@code JpaTransactionManager} over the factory:
  *       {@code new JpaTransactionManager(emf)}. The manager borrows the factory and never closes
  *       it, so the factory's owner stays responsible for its shutdown.</li>

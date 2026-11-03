@@ -15,11 +15,10 @@ import jakarta.persistence.PersistenceConfiguration;
  *
  * <p>The configuration always names a unit and is always bound to the application's pool — the
  * {@link DataSource} qualified with {@link RawDataSource} when there is one, otherwise the default
- * unqualified {@code DataSource}. Both
- * {@link PersistenceConfiguration#JDBC_DATASOURCE} and
- * {@link JpaBootstrap#NON_JTA_DATA_SOURCE} carry that same instance: the first is the Jakarta
- * Persistence 3.2 property, the second is what providers such as Hibernate 7 still look for to
- * treat the unit as resource-local.</p>
+ * unqualified {@code DataSource}. The pool instance is carried under the
+ * {@link PersistenceConfiguration#JDBC_DATASOURCE} property and again under the Hibernate
+ * property {@code hibernate.connection.datasource}, which is what providers such as Hibernate 7 read
+ * to treat the unit as resource-local.</p>
  *
  * <p>An application fills in the rest — managed classes, provider properties, or the persistence
  * unit name — with one or more {@link PersistenceConfigurationCustomizer} beans. Without a name
@@ -40,6 +39,9 @@ public class PersistenceConfigurationProducer {
 
     /** The persistence unit name used when no customizer supplies one. */
     public static final String DEFAULT_PERSISTENCE_UNIT_NAME = "__defaultPU";
+
+    /** The Hibernate property carrying the resource-local {@link DataSource} instance. */
+    private static final String HIBERNATE_DATA_SOURCE = "hibernate.connection.datasource";
 
     private static final String TRANSACTION_AWARE_PROXY = "io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy";
 
@@ -77,7 +79,8 @@ public class PersistenceConfigurationProducer {
     public PersistenceConfiguration persistenceConfiguration() {
         DataSource dataSource = resolveDataSource();
         PersistenceConfiguration configuration = new PersistenceConfiguration(resolvePersistenceUnitName())
-                .property(PersistenceConfiguration.JDBC_DATASOURCE, dataSource);
+                .property(PersistenceConfiguration.JDBC_DATASOURCE, dataSource)
+                .property(HIBERNATE_DATA_SOURCE, dataSource);
         for (PersistenceConfigurationCustomizer customizer : customizers) {
             customizer.customize(configuration);
         }

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.Persistence;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -24,16 +25,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class JpaTransactionManagerBootstrapTest {
 
-    private static final Map<String, Object> PROPERTIES = Map.of("hibernate.hbm2ddl.auto",
-            "create",
-            "hibernate.dialect",
-            "org.hibernate.dialect.H2Dialect"
-    );
-
     @Test
     void usesTheCallerEntityManagerFactoryAndLeavesItOpen() throws Exception {
         try (HikariDataSource pool = pool("jpa-bootstrap");
-             EntityManagerFactory emf = JpaBootstrap.create("test", pool, PROPERTIES)) {
+             EntityManagerFactory emf = Persistence.createEntityManagerFactory("test", Map.of(
+                     "jakarta.persistence.nonJtaDataSource", pool,
+                     "hibernate.hbm2ddl.auto", "create",
+                     "hibernate.dialect", "org.hibernate.dialect.H2Dialect"))) {
             JpaTransactionManager manager = new JpaTransactionManager(emf);
 
             assertSame(emf, manager.getEntityManagerFactory());

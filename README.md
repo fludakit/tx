@@ -9,7 +9,7 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 - `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions), the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding, and the `@RawDataSource` qualifier.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
 - `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager`, its CDI producer, and `TransactionAwareDataSourceProxy`.
-- `fluda-tx-jpa`: Resource-local `JpaTransactionManager`, `JpaHelper`, `JpaBootstrap`, and the CDI producers for the `PersistenceConfiguration`, the `EntityManagerFactory`, and the transaction manager.
+- `fluda-tx-jpa`: Resource-local `JpaTransactionManager` and `JpaHelper`, plus the CDI producers for the `PersistenceConfiguration`, the `EntityManagerFactory`, and the transaction manager.
 
 ## Usage
 

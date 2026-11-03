@@ -45,7 +45,8 @@ import jakarta.persistence.PersistenceException;
  * {@link ConnectionExtractor} for a provider that needs its own connection lookup.</p>
  *
  * <pre>{@code
- * EntityManagerFactory emf = JpaBootstrap.create("myPU", pool);
+ * EntityManagerFactory emf = Persistence.createEntityManagerFactory("myPU", Map.of(
+ *         "jakarta.persistence.nonJtaDataSource", pool));
  * JpaTransactionManager txManager = new JpaTransactionManager(emf);
  *
  * // or, with a provider-specific extraction strategy
@@ -77,7 +78,8 @@ import jakarta.persistence.PersistenceException;
  *
  * <pre>{@code
  * // persistence provider side: the raw pool
- * EntityManagerFactory emf = JpaBootstrap.create("myPU", pool);
+ * EntityManagerFactory emf = Persistence.createEntityManagerFactory("myPU", Map.of(
+ *         "jakarta.persistence.nonJtaDataSource", pool));
  * JpaTransactionManager txManager = new JpaTransactionManager(emf);
  *
  * // application side: a view of the same pool whose connections join the transaction

@@ -38,10 +38,9 @@ class PersistenceConfigurationProducerTest {
 
             assertSame(config.pool,
                     configuration.properties().get(PersistenceConfiguration.JDBC_DATASOURCE),
-                    "the @RawDataSource pool must be bound to the configuration");
-            assertSame(config.pool,
-                    configuration.properties().get(JpaBootstrap.NON_JTA_DATA_SOURCE),
-                    "Hibernate still reads jakarta.persistence.nonJtaDataSource");
+                    "the Jakarta persistence property must carry the pool");
+            assertSame(config.pool, configuration.properties().get(HIBERNATE_DATA_SOURCE),
+                    "the Hibernate connection property must carry the pool");
             assertEquals(PersistenceConfigurationProducer.DEFAULT_PERSISTENCE_UNIT_NAME, configuration.name());
         }
     }
@@ -113,6 +112,8 @@ class PersistenceConfigurationProducerTest {
     }
 
     // --- fixtures ------------------------------------------------------------
+
+    private static final String HIBERNATE_DATA_SOURCE = "hibernate.connection.datasource";
 
     private static WeldContainer container(Class<?>... beans) {
         Weld weld = new Weld().disableDiscovery().addBeanClass(PersistenceConfigurationProducer.class);

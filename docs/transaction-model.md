@@ -303,13 +303,13 @@ managed classes, which suits an application that keeps its mappings in `persiste
 In plain Java, build the factory yourself and pass it in:
 
 ```java
-EntityManagerFactory emf = JpaBootstrap.create("myPU", pool);
+EntityManagerFactory emf = Persistence.createEntityManagerFactory("myPU", Map.of(
+        "jakarta.persistence.nonJtaDataSource", pool));
 JpaTransactionManager txManager = new JpaTransactionManager(emf);
 ```
 
-`JpaBootstrap.create` passes the `DataSource` as `jakarta.persistence.nonJtaDataSource`; the
-`jakarta.persistence.dataSource` property alone is not enough, because the persistence provider
-only takes a `DataSource` instance from the non-JTA property. The factory stays the caller's.
+The `DataSource` is carried as the `jakarta.persistence.nonJtaDataSource` property, which is what
+providers such as Hibernate read in resource-local mode; the factory stays the caller's.
 
 **cdi** — the interceptor looks up the definition the extension precomputed at deployment
 (resolving and caching it on first use for a class the extension never saw) and calls
