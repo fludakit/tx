@@ -24,6 +24,41 @@
  *       work</li>
  * </ul>
  *
+ * <h2>Wiring a transaction manager</h2>
+ * <p>Both built-in managers are plain objects; the CDI module adds discovery, not a different
+ * lifecycle. The steps are the same in either case: provide the resource, create the manager over
+ * it, then use the manager directly or let the interceptor drive it.</p>
+ *
+ * <p><strong>JDBC</strong></p>
+ * <ol>
+ *   <li>Create or obtain the connection pool (a {@code DataSource}). The manager opens connections
+ *       from it.</li>
+ *   <li>Create {@code JdbcTransactionManager} over that pool:
+ *       {@code new JdbcTransactionManager(pool)}. Pass the pool itself, never a
+ *       {@code TransactionAwareDataSourceProxy}.</li>
+ *   <li>Expose {@code manager.getTransactionAwareDataSource()} to application JDBC code, so its
+ *       {@code getConnection()} calls join the running transaction.</li>
+ *   <li>Use the manager programmatically through {@code execute}, or add {@code fluda-tx-cdi} and
+ *       annotate methods with {@code @Transactional}. Under CDI,
+ *       {@code JdbcTransactionManagerProducer} performs steps 1 and 2 and honours a
+ *       {@code @RawDataSource} qualified pool.</li>
+ * </ol>
+ *
+ * <p><strong>JPA</strong></p>
+ * <ol>
+ *   <li>Create or obtain the pool, as above.</li>
+ *   <li>Build the {@code EntityManagerFactory} over that pool. Under CDI the
+ *       {@code PersistenceConfigurationProducer} and {@code EntityManagerFactoryProducer} do this,
+ *       applying any {@code PersistenceConfigurationCustomizer} beans; in plain Java use
+ *       {@code Persistence.createEntityManagerFactory(unitName, properties)}.</li>
+ *   <li>Create {@code JpaTransactionManager} over the factory:
+ *       {@code new JpaTransactionManager(emf)}. The manager borrows the factory and never closes
+ *       it, so the factory's owner stays responsible for its shutdown.</li>
+ *   <li>Use the manager, or {@code @Transactional}. Under CDI,
+ *       {@code JpaTransactionManagerProducer} produces it over the container's factory and picks
+ *       up a {@code ConnectionExtractor} bean when the application declares one.</li>
+ * </ol>
+ *
  * <h2>Programmatic usage</h2>
  * <pre>{@code
  * @Inject

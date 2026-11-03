@@ -11,6 +11,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.Id;
+import jakarta.persistence.Persistence;
 import jakarta.persistence.Table;
 
 import org.junit.jupiter.api.AfterAll;
@@ -56,7 +57,8 @@ class JpaTransactionManagerTest {
         config.setPassword("");
         dataSource = new HikariDataSource(config);
 
-        emf = JpaBootstrap.create("test", dataSource, Map.of(
+        emf = Persistence.createEntityManagerFactory("test", Map.of(
+                "jakarta.persistence.nonJtaDataSource", dataSource,
                 "hibernate.hbm2ddl.auto", "create",
                 "hibernate.dialect", "org.hibernate.dialect.H2Dialect"));
     }

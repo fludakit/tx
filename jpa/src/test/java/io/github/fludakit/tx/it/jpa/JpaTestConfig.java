@@ -2,25 +2,25 @@ package io.github.fludakit.tx.it.jpa;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.fludakit.tx.TransactionManager;
+import io.github.fludakit.tx.RawDataSource;
 import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
-import io.github.fludakit.tx.jpa.JpaBootstrap;
-import io.github.fludakit.tx.jpa.JpaTransactionManager;
+import io.github.fludakit.tx.jpa.PersistenceConfigurationCustomizer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
-import jakarta.enterprise.inject.Typed;
-import jakarta.inject.Named;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.PersistenceConfiguration;
 
 import javax.sql.DataSource;
-import java.util.Map;
 
+/**
+ * CDI/DB wiring for the JPA integration tests: a raw pool for the transaction manager and the
+ * persistence unit, a transaction-aware proxy as the default {@code DataSource} for plain JDBC
+ * code, and the customizer that turns the library's {@link PersistenceConfiguration} into the
+ * test unit.
+ */
 @ApplicationScoped
-public class JpaTestConfig {
+public class JpaTestConfig implements PersistenceConfigurationCustomizer {
 
     private final HikariDataSource rawPool;
-    private final EntityManagerFactory emf;
 
     public JpaTestConfig() {
         HikariConfig config = new HikariConfig();
@@ -29,17 +29,12 @@ public class JpaTestConfig {
         config.setPassword("");
         config.setMaximumPoolSize(10);
         this.rawPool = new HikariDataSource(config);
-
-        this.emf = JpaBootstrap.create("test", rawPool, Map.of(
-                "hibernate.hbm2ddl.auto", "create",
-                "hibernate.dialect", "org.hibernate.dialect.H2Dialect"));
     }
 
     @Produces
-    @Named("raw")
-    @Typed(HikariDataSource.class)
+    @RawDataSource
     @ApplicationScoped
-    public HikariDataSource rawPool() {
+    public DataSource rawPool() {
         return rawPool;
     }
 
@@ -49,15 +44,10 @@ public class JpaTestConfig {
         return new TransactionAwareDataSourceProxy(rawPool);
     }
 
-    @Produces
-    @ApplicationScoped
-    public EntityManagerFactory entityManagerFactory() {
-        return emf;
-    }
-
-    @Produces
-    @ApplicationScoped
-    public TransactionManager<EntityManager> transactionManager() {
-        return new JpaTransactionManager(emf);
+    @Override
+    public void customize(PersistenceConfiguration configuration) {
+        configuration.managedClass(TestEntity.class)
+                .property("hibernate.hbm2ddl.auto", "create")
+                .property("hibernate.dialect", "org.hibernate.dialect.H2Dialect");
     }
 }

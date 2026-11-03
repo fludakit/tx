@@ -2,6 +2,9 @@ package io.github.fludakit.tx.it.jpa;
 
 import io.github.fludakit.tx.cdi.TransactionalCdiExtension;
 import io.github.fludakit.tx.cdi.TransactionalInterceptor;
+import io.github.fludakit.tx.jpa.EntityManagerFactoryProducer;
+import io.github.fludakit.tx.jpa.JpaTransactionManagerProducer;
+import io.github.fludakit.tx.jpa.PersistenceConfigurationProducer;
 import jakarta.inject.Inject;
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
@@ -24,6 +27,9 @@ class JpaTransactionalTest {
     public WeldInitiator weld = WeldInitiator.from(
             JpaTestConfig.class,
             JpaTestService.class,
+            PersistenceConfigurationProducer.class,
+            EntityManagerFactoryProducer.class,
+            JpaTransactionManagerProducer.class,
             TransactionalInterceptor.class,
             TransactionalCdiExtension.class
     ).build();
