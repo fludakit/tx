@@ -276,9 +276,10 @@ read-only), binds it to the status, and registers a synchronization that resets 
 Savepoints map to JDBC savepoints through the shared `JdbcSavepointManager`, which also tolerates
 drivers that reject `releaseSavepoint`. `TransactionAwareDataSourceProxy` lets plain
 `dataSource.getConnection()` code join the transaction; outside one it delegates to the pool,
-credentials included. `JdbcTransactionManagerProducer` builds the manager over the pool,
-preferring a `@RawDataSource` bean and rejecting a `TransactionAwareDataSourceProxy` — the manager
-must open real connections, not proxy views of the running transaction.
+credentials included. `JdbcTransactionManagerProducer` reuses the application's unqualified
+`TransactionAwareDataSourceProxy` when it exposes one, so application code and the manager share a
+single proxy; otherwise it prefers a `@RawDataSource` bean and falls back to the default
+`DataSource`, wrapping that pool itself.
 
 **jpa** — `JpaTransactionManager` creates an `EntityManager`, begins its `EntityTransaction`,
 binds both the `EntityManager` and the underlying `Connection` (so mixed JDBC/JPA code shares
@@ -288,11 +289,12 @@ connection, through the same `JdbcSavepointManager`.
 The manager only borrows an `EntityManagerFactory`: it never creates, owns, or closes one. Under
 CDI the container supplies the whole chain:
 
-- `PersistenceConfigurationProducer` resolves the pool the same way the JDBC producer does
-  (`@RawDataSource` first, unqualified `DataSource` second, proxy rejected), binds it as
-  `jakarta.persistence.nonJtaDataSource`, and applies every `PersistenceConfigurationCustomizer`
-  bean. A customizer supplies what only the application knows: managed classes, provider
-  properties, and optionally the persistence unit name.
+- `PersistenceConfigurationProducer` resolves the raw pool the same way the JDBC producer does
+  (`@RawDataSource` first, unqualified `DataSource` second), but rejects a
+  `TransactionAwareDataSourceProxy`: a persistence unit has to be built over the pool itself. It
+  binds the pool as `jakarta.persistence.nonJtaDataSource` and applies every
+  `PersistenceConfigurationCustomizer` bean. A customizer supplies what only the application knows:
+  managed classes, provider properties, and optionally the persistence unit name.
 - `EntityManagerFactoryProducer` creates the factory once and closes it at shutdown.
 - `JpaTransactionManagerProducer` produces the manager over that factory; a
   `ConnectionExtractor` bean, when declared, replaces `ConnectionExtractor.DEFAULT`.
@@ -318,12 +320,14 @@ providers such as Hibernate read in resource-local mode; the factory stays the c
 fired, so the interceptor carries no event code at all. `TransactionScopeContext` implements
 `@TransactionScoped` over the status attribute slots.
 
-The producers shipped with the library (`JdbcTransactionManagerProducer`,
+The producer classes shipped with the library (`JdbcTransactionManagerProducer`,
 `PersistenceConfigurationProducer`, `EntityManagerFactoryProducer`,
-`JpaTransactionManagerProducer`) are `@Singleton` rather than application-scoped: they return
-non-proxyable objects — a pool, a factory, the concrete manager — and the application has to be
-able to inject those exact types. Declaring a single `ConnectionExtractor` bean replaces the
-default extraction strategy; declaring more than one fails at startup.
+`JpaTransactionManagerProducer`) are `@ApplicationScoped` so that annotated discovery sees them:
+`@Singleton` is not a bean defining annotation, so a class scoped only `@Singleton` would be
+skipped and no producer registered at all. The beans they produce stay `@Singleton`, because they
+return non-proxyable objects — a factory, the concrete manager, a mutable configuration — and the
+application has to be able to inject those exact types. Declaring a single `ConnectionExtractor`
+bean replaces the default extraction strategy; declaring more than one fails at startup.
 
 ## Out of scope (on purpose)
 

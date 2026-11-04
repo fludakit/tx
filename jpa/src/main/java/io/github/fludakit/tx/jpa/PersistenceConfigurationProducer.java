@@ -4,6 +4,7 @@ import io.github.fludakit.tx.RawDataSource;
 
 import java.util.logging.Logger;
 import javax.sql.DataSource;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -25,16 +26,20 @@ import jakarta.persistence.PersistenceConfiguration;
  * the unit is {@link #DEFAULT_PERSISTENCE_UNIT_NAME}, which keeps a programmatic unit, with no
  * {@code persistence.xml} entry, working out of the box.</p>
  *
- * <p>The bean has {@link Singleton} scope because {@link PersistenceConfiguration} is a mutable
- * builder with no no-arg constructor: a normal scope would need a proxy the class cannot provide,
- * and one configuration per container keeps the customizers and the factory they feed in sync. An
- * application that builds its own configuration replaces this bean with an
- * {@code @Alternative} producer carrying a {@code @Priority}.</p>
+ * <p>The produced configuration has {@link Singleton} scope because
+ * {@link PersistenceConfiguration} is a mutable builder with no no-arg constructor: a normal scope
+ * would need a proxy the class cannot provide, and one configuration per container keeps the
+ * customizers and the factory they feed in sync. An application that builds its own configuration
+ * replaces this bean with an {@code @Alternative} producer carrying a {@code @Priority}.</p>
+ *
+ * <p>The producer class itself is {@link ApplicationScoped} because {@code @Singleton} is not a
+ * bean defining annotation: annotated discovery would skip the class, and no producer would be
+ * registered at all.</p>
  *
  * @see PersistenceConfigurationCustomizer
  * @see EntityManagerFactoryProducer
  */
-@Singleton
+@ApplicationScoped
 public class PersistenceConfigurationProducer {
 
     /** The persistence unit name used when no customizer supplies one. */

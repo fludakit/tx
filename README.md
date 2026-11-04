@@ -44,18 +44,24 @@ hint, so the programmatic and the declarative front-ends cannot disagree.
 
 ## CDI
 
-The producers wire the managers — and the JPA factory — from a pool bean. Qualify the pool with
-`@RawDataSource` when the default `DataSource` is a `TransactionAwareDataSourceProxy`:
+The producers wire the managers — and the JPA factory — from a pool bean. Expose the
+transaction-aware view as the default `DataSource`, and the JDBC manager reuses that same proxy
+instead of layering a second one:
+
+```java
+@Produces
+public DataSource dataSource() {
+    return new TransactionAwareDataSourceProxy(pool());   // what application JDBC code injects
+}
+```
+
+Add a `@RawDataSource` producer as soon as JPA is on the classpath: a persistence unit must bind
+the pool itself, so `PersistenceConfigurationProducer` rejects the proxy.
 
 ```java
 @Produces @RawDataSource
 public DataSource pool() {
     return hikariDataSource;                              // the pool itself
-}
-
-@Produces
-public DataSource dataSource() {
-    return new TransactionAwareDataSourceProxy(pool());   // what application JDBC code injects
 }
 ```
 

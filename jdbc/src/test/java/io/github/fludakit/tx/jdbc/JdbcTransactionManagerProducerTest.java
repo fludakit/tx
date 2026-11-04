@@ -26,13 +26,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class JdbcTransactionManagerProducerTest {
 
     @Test
-    void prefersTheRawQualifiedPoolOverTheDefaultProxy() {
+    void reusesTheApplicationProxyInsteadOfWrappingThePoolAgain() {
         try (WeldContainer container = container(RawAndGeneralConfig.class)) {
             RawAndGeneralConfig config = container.select(RawAndGeneralConfig.class).get();
             JdbcTransactionManager manager = container.select(JdbcTransactionManager.class).get();
 
+            assertSame(config.proxy, manager.getTransactionAwareDataSource(),
+                    "the application's proxy must be reused instead of a second one being created");
             assertSame(config.pool, manager.getDataSource(),
-                    "the @RawDataSource pool must win over the unqualified TransactionAwareDataSourceProxy");
+                    "the manager still opens real connections from the pool behind the proxy");
         }
     }
 
@@ -47,13 +49,13 @@ class JdbcTransactionManagerProducerTest {
     }
 
     @Test
-    void rejectsTheTransactionAwareProxyAsTheDefaultDataSource() {
+    void reusesTheDefaultProxyWhenNoRawBeanExists() {
         try (WeldContainer container = container(ProxyOnlyConfig.class)) {
-            RuntimeException failure = assertThrows(RuntimeException.class,
-                    () -> container.select(JdbcTransactionManager.class).get());
+            ProxyOnlyConfig config = container.select(ProxyOnlyConfig.class).get();
+            JdbcTransactionManager manager = container.select(JdbcTransactionManager.class).get();
 
-            assertTrue(messages(failure).contains("TransactionAwareDataSourceProxy"),
-                    () -> "unexpected failure: " + messages(failure));
+            assertSame(config.proxy, manager.getTransactionAwareDataSource());
+            assertSame(config.pool, manager.getDataSource());
         }
     }
 
@@ -139,11 +141,12 @@ class JdbcTransactionManagerProducerTest {
     public static class ProxyOnlyConfig {
 
         final HikariDataSource pool = pool("producer-proxy");
+        final DataSource proxy = new TransactionAwareDataSourceProxy(pool);
 
         @Produces
         @Singleton
         public DataSource dataSource() {
-            return new TransactionAwareDataSourceProxy(pool);
+            return proxy;
         }
 
         @PreDestroy

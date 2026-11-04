@@ -2,6 +2,7 @@ package io.github.fludakit.tx.jpa;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
@@ -16,15 +17,19 @@ import jakarta.persistence.PersistenceConfiguration;
  * shuts down. Nothing else creates, owns, or closes factories: {@link JpaTransactionManager} only
  * borrows one, which keeps the persistence unit's lifecycle in a single place.</p>
  *
- * <p>The bean has {@link Singleton} scope because a factory is created once per container and is
- * too expensive — and too provider-specific — to proxy. An application that needs a second unit
- * declares its own {@code EntityManagerFactory} bean and {@code JpaTransactionManager} bean,
- * typically in a {@code @Dependent} producer per unit.</p>
+ * <p>The produced factory has {@link Singleton} scope because a factory is created once per
+ * container and is too expensive — and too provider-specific — to proxy. An application that needs
+ * a second unit declares its own {@code EntityManagerFactory} bean and {@code JpaTransactionManager}
+ * bean, typically in a {@code @Dependent} producer per unit.</p>
+ *
+ * <p>The producer class itself is {@link ApplicationScoped} because {@code @Singleton} is not a
+ * bean defining annotation: annotated discovery would skip the class, and no producer would be
+ * registered at all.</p>
  *
  * @see PersistenceConfigurationProducer
  * @see PersistenceConfigurationCustomizer
  */
-@Singleton
+@ApplicationScoped
 public class EntityManagerFactoryProducer {
 
     private static final Logger LOG = Logger.getLogger(EntityManagerFactoryProducer.class.getName());
