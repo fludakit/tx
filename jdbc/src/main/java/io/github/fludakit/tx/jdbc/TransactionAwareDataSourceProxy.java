@@ -46,9 +46,25 @@ public class TransactionAwareDataSourceProxy implements DataSource {
 
     /**
      * @param delegate the raw pool whose connections join the running transaction
+     * @throws IllegalArgumentException if the delegate is already a
+     *                                  {@code TransactionAwareDataSourceProxy}: layering two of
+     *                                  them would make {@link #getDelegate()} return a view
+     *                                  instead of the pool
      */
     public TransactionAwareDataSourceProxy(DataSource delegate) {
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
+        if (delegate instanceof TransactionAwareDataSourceProxy) {
+            throw new IllegalArgumentException("delegate must be the raw pool, not another "
+                    + TransactionAwareDataSourceProxy.class.getSimpleName());
+        }
+    }
+
+    /**
+     * The raw pool behind this view. Transaction managers use it to open the connections the
+     * transaction actually controls.
+     */
+    public DataSource getDelegate() {
+        return delegate;
     }
 
     @Override

@@ -29,9 +29,10 @@ import jakarta.inject.Qualifier;
  * }
  * }</pre>
  *
- * <p>The producers shipped with this library prefer a {@code @RawDataSource} bean and fall back to
- * the default unqualified {@code DataSource} when none is qualified this way, so an application
- * with a single pool needs no qualifier at all.</p>
+ * <p>The producers shipped with this library reuse an unqualified
+ * {@code TransactionAwareDataSourceProxy} when the application exposes one as its default bean,
+ * so an application with a single pool needs no qualifier at all; otherwise they prefer a
+ * {@code @RawDataSource} bean and fall back to the default unqualified {@code DataSource}.</p>
  *
  * @see javax.sql.DataSource
  */

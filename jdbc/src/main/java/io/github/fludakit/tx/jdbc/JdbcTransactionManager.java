@@ -26,24 +26,26 @@ import javax.sql.DataSource;
  * use {@link #getTransactionAwareDataSource()}, whose connections join the running transaction
  * and suppress {@code close()}.</p>
  *
- * <h2>Creating a manager</h2>
- * <p>The only collaborator is the raw pool. Construct the manager once and reuse it; it holds no
- * per-transaction state, only the pool it opens connections from.</p>
+ * <p>A manager is built either over the application's transaction-aware view or over the raw
+ * pool; both answer the same way, because the view is the manager's own. Construct the manager
+ * once and reuse it; it holds no per-transaction state, only the pool it opens connections from.</p>
  *
  * <pre>{@code
  * HikariDataSource pool = new HikariDataSource(config);
- * JdbcTransactionManager txManager = new JdbcTransactionManager(pool);
  *
- * // what application JDBC code injects: connections join the running transaction
- * DataSource dataSource = txManager.getTransactionAwareDataSource();
+ * // the application owns the view: the manager reuses it instead of layering a second proxy
+ * TransactionAwareDataSourceProxy dataSource = new TransactionAwareDataSourceProxy(pool);
+ * JdbcTransactionManager txManager = new JdbcTransactionManager(dataSource);
+ *
+ * // or hand over the pool and let the manager own the view
+ * JdbcTransactionManager pooled = new JdbcTransactionManager(pool);
  * }</pre>
  *
- * <p>Never pass a {@code TransactionAwareDataSourceProxy} to the constructor: the manager opens
- * real connections and must not receive a proxy that would suppress their {@code close()}. Under
- * CDI there is nothing to construct — {@code JdbcTransactionManagerProducer} resolves the pool
- * (the {@code @RawDataSource} bean when declared, the default {@code DataSource} otherwise) and
- * exposes the manager as a {@code @Singleton} bean, so either the concrete type or the
- * {@code TransactionManager} interface can be injected:</p>
+ * <p>Under CDI there is nothing to construct — {@code JdbcTransactionManagerProducer} resolves the
+ * {@code DataSource} (reusing an unqualified {@code TransactionAwareDataSourceProxy}, otherwise the
+ * {@code @RawDataSource} pool or the default {@code DataSource}) and exposes the manager as a
+ * {@code @Singleton} bean, so either the concrete type or the {@code TransactionManager} interface
+ * can be injected:</p>
  *
  * <pre>{@code
  * @Inject
@@ -61,13 +63,38 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
     private final TransactionAwareDataSourceProxy dataSourceProxy;
 
     /**
-     * Creates a manager over the given pool.
+     * Creates a manager over the application's transaction-aware view.
      *
-     * @param dataSource the raw {@code DataSource} — the connection pool
+     * <p>The view is reused as is: {@link #getTransactionAwareDataSource()} returns the very
+     * instance that was handed in, and connections are opened from its {@linkplain
+     * TransactionAwareDataSourceProxy#getDelegate() delegate}.</p>
+     *
+     * @param dataSource the transaction-aware view over the connection pool
+     */
+    public JdbcTransactionManager(TransactionAwareDataSourceProxy dataSource) {
+        this.dataSourceProxy = Objects.requireNonNull(dataSource, "dataSource must not be null");
+        this.rawDataSource = dataSource.getDelegate();
+    }
+
+    /**
+     * Creates a manager over a pool, owning the transaction-aware view itself.
+     *
+     * <p>A {@code TransactionAwareDataSourceProxy} is reused rather than wrapped again, so passing
+     * a {@code DataSource} that happens to be the application's view still leaves exactly one
+     * proxy over the pool.</p>
+     *
+     * @param dataSource the raw {@code DataSource} — the connection pool — or a
+     *                   {@code TransactionAwareDataSourceProxy} over it
      */
     public JdbcTransactionManager(DataSource dataSource) {
-        this.rawDataSource = Objects.requireNonNull(dataSource, "dataSource must not be null");
-        this.dataSourceProxy = new TransactionAwareDataSourceProxy(this.rawDataSource);
+        this(asTransactionAware(dataSource));
+    }
+
+    private static TransactionAwareDataSourceProxy asTransactionAware(DataSource dataSource) {
+        Objects.requireNonNull(dataSource, "dataSource must not be null");
+        return dataSource instanceof TransactionAwareDataSourceProxy proxy
+                ? proxy
+                : new TransactionAwareDataSourceProxy(dataSource);
     }
 
     /** The raw pool this manager opens connections from. */
@@ -78,6 +105,8 @@ public class JdbcTransactionManager extends AbstractTransactionOperations<Connec
     /**
      * A view of the pool whose {@link DataSource#getConnection()} returns the transaction-bound
      * connection and suppresses {@code close()} while a transaction is active.
+     *
+     * <p>This is the application's own proxy when the manager was built over one.</p>
      */
     public TransactionAwareDataSourceProxy getTransactionAwareDataSource() {
         return dataSourceProxy;

@@ -23,6 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -42,6 +44,35 @@ class TransactionAwareDataSourceProxyTest {
         assertFalse(connection.isClosed());
         connection.close();
         assertTrue(connection.isClosed(), "outside a transaction close must be real");
+    }
+
+    @Test
+    void managerReusesTheApplicationProxy() {
+        DataSource dataSource = newDataSource("proxy-reuse");
+        TransactionAwareDataSourceProxy proxy = new TransactionAwareDataSourceProxy(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager(proxy);
+
+        assertSame(proxy, manager.getTransactionAwareDataSource());
+        assertSame(dataSource, manager.getDataSource());
+        assertSame(dataSource, proxy.getDelegate());
+    }
+
+    @Test
+    void managerReusesAProxyPassedAsADataSource() {
+        DataSource dataSource = newDataSource("proxy-reuse-ds");
+        TransactionAwareDataSourceProxy proxy = new TransactionAwareDataSourceProxy(dataSource);
+        JdbcTransactionManager manager = new JdbcTransactionManager((DataSource) proxy);
+
+        assertSame(proxy, manager.getTransactionAwareDataSource());
+        assertSame(dataSource, manager.getDataSource());
+    }
+
+    @Test
+    void proxyRejectsAnotherProxyAsItsDelegate() {
+        DataSource dataSource = newDataSource("proxy-nested");
+        TransactionAwareDataSourceProxy proxy = new TransactionAwareDataSourceProxy(dataSource);
+
+        assertThrows(IllegalArgumentException.class, () -> new TransactionAwareDataSourceProxy(proxy));
     }
 
     @Test

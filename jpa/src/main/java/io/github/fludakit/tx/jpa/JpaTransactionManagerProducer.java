@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.jpa;
 
 import java.util.logging.Logger;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -21,15 +22,19 @@ import jakarta.persistence.EntityManagerFactory;
  * provider other than Hibernate needs to reach its transactional connection. Declaring more than
  * one extractor bean fails at startup, since the producer cannot choose between them.</p>
  *
- * <p>The bean has {@link Singleton} scope, not {@code @ApplicationScoped}: the manager is
- * stateless and the concrete {@link JpaTransactionManager} type stays injectable, which an
- * application needs when it wants to register {@code TransactionSynchronization}s or run a
- * programmatic boundary. Injecting {@code TransactionManager} works too.</p>
+ * <p>The produced manager has {@link Singleton} scope: the manager is stateless and the concrete
+ * {@link JpaTransactionManager} type stays injectable, which an application needs when it wants to
+ * register {@code TransactionSynchronization}s or run a programmatic boundary. Injecting
+ * {@code TransactionManager} works too.</p>
+ *
+ * <p>The producer class itself is {@link ApplicationScoped} because {@code @Singleton} is not a
+ * bean defining annotation: annotated discovery would skip the class, and no producer would be
+ * registered at all.</p>
  *
  * @see JpaTransactionManager
  * @see EntityManagerProducer
  */
-@Singleton
+@ApplicationScoped
 public class JpaTransactionManagerProducer {
 
     private static final Logger LOG = Logger.getLogger(JpaTransactionManagerProducer.class.getName());
