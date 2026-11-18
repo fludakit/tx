@@ -65,7 +65,7 @@ import jakarta.persistence.PersistenceException;
  *
  * <h2>Pass the raw pool, not the transaction-aware proxy</h2>
  * <p>The {@link DataSource} the factory is built on is the connection pool itself, never a
- * {@code io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy}. This manager does not open
+ * {@code io.github.fludakit.tx.support.TransactionAwareDataSourceProxy}. This manager does not open
  * connections — the persistence provider does — so there is nothing for that proxy to route. The
  * sharing runs the other way: after {@code EntityTransaction.begin()}, {@link #doBegin} extracts
  * the provider's JDBC {@link Connection} and binds it as a {@code Connection.class} attribute,

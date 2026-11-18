@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.jdbc;
 
 import io.github.fludakit.tx.TransactionStatus;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 import io.github.fludakit.tx.support.AbstractTransactionOperations;
 import io.github.fludakit.tx.support.DefaultTransactionStatus;
 import io.github.fludakit.tx.support.TransactionStatusHolder;

@@ -41,7 +41,7 @@
  *   <li>Use the manager programmatically through {@code execute}, or add {@code fluda-tx-cdi} and
  *       annotate methods with {@code @Transactional}. Under CDI,
  *       {@code JdbcTransactionManagerProducer} performs steps 1 and 2 and honours a
- *       {@code @RawDataSource} qualified pool.</li>
+ *       {@code @RawPool} qualified pool.</li>
  * </ol>
  *
  * <p><strong>JPA</strong></p>

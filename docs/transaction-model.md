@@ -41,8 +41,8 @@ Consequences:
 | Package                     | Contents                                                       | Visibility      |
 |-----------------------------|----------------------------------------------------------------|-----------------|
 | `io.github.fludakit.tx`     | API: definition, status, manager, operations, savepoints, exceptions | public, application-facing |
-| `io.github.fludakit.tx.support` | Runtime: the template (`AbstractTransactionOperations`), the status implementation, the scope holder | public but internal-facing |
-| `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `JdbcTransactionManagerProducer`, `TransactionAwareDataSourceProxy` | public |
+| `io.github.fludakit.tx.support` | Runtime: the template, the status implementation, the scope holder, `@RawPool`, `TransactionAwareDataSourceProxy` | public |
+| `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `JdbcTransactionManagerProducer` | public |
 | `io.github.fludakit.tx.jpa`  | `JpaTransactionManager`, `JpaHelper`, `EntityManagerProducer`, the persistence and factory producers, `PersistenceConfigurationCustomizer`, `ConnectionExtractor` | public          |
 | `io.github.fludakit.tx.cdi`  | `@Transactional` interceptor, `@TransactionScoped` context, transactional event dispatch, metadata registry | public |
 
@@ -278,7 +278,7 @@ drivers that reject `releaseSavepoint`. `TransactionAwareDataSourceProxy` lets p
 `dataSource.getConnection()` code join the transaction; outside one it delegates to the pool,
 credentials included. `JdbcTransactionManagerProducer` reuses the application's unqualified
 `TransactionAwareDataSourceProxy` when it exposes one, so application code and the manager share a
-single proxy; otherwise it prefers a `@RawDataSource` bean and falls back to the default
+single proxy; otherwise it prefers a `@RawPool` bean and falls back to the default
 `DataSource`, wrapping that pool itself.
 
 **jpa** — `JpaTransactionManager` creates an `EntityManager`, begins its `EntityTransaction`,
@@ -290,7 +290,7 @@ The manager only borrows an `EntityManagerFactory`: it never creates, owns, or c
 CDI the container supplies the whole chain:
 
 - `PersistenceConfigurationProducer` resolves the raw pool the same way the JDBC producer does
-  (`@RawDataSource` first, unqualified `DataSource` second), but rejects a
+  (`@RawPool` first, unqualified `DataSource` second), but rejects a
   `TransactionAwareDataSourceProxy`: a persistence unit has to be built over the pool itself. It
   binds the pool as `jakarta.persistence.nonJtaDataSource` and applies every
   `PersistenceConfigurationCustomizer` bean. A customizer supplies what only the application knows:

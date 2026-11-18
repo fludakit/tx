@@ -1,6 +1,6 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.RawDataSource;
+import io.github.fludakit.tx.support.RawPool;
 import io.github.fludakit.tx.it.jpa.TestEntity;
 
 import com.zaxxer.hikari.HikariConfig;
@@ -96,7 +96,7 @@ class JpaTransactionManagerProducerTest {
         final HikariDataSource pool = pool("manager-producer");
 
         @Produces
-        @RawDataSource
+        @RawPool
         @Singleton
         public DataSource rawPool() {
             return pool;

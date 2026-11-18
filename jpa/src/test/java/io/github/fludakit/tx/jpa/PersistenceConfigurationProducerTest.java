@@ -1,8 +1,8 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.RawDataSource;
+import io.github.fludakit.tx.support.RawPool;
 import io.github.fludakit.tx.it.jpa.TestEntity;
-import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -101,6 +101,17 @@ class PersistenceConfigurationProducerTest {
     }
 
     @Test
+    void rejectsAnApplicationScopedTransactionAwareProxy() {
+        try (WeldContainer container = container(ApplicationScopedProxyConfig.class)) {
+            RuntimeException failure = assertThrows(RuntimeException.class,
+                    () -> container.select(PersistenceConfiguration.class).get());
+
+            assertTrue(messages(failure).contains("TransactionAwareDataSourceProxy"),
+                    () -> "unexpected failure: " + messages(failure));
+        }
+    }
+
+    @Test
     void failsWhenNoDataSourceBeanExists() {
         try (WeldContainer container = container(NoDataSourceConfig.class)) {
             RuntimeException failure = assertThrows(RuntimeException.class,
@@ -146,7 +157,7 @@ class PersistenceConfigurationProducerTest {
         final DataSource proxy = new TransactionAwareDataSourceProxy(pool);
 
         @Produces
-        @RawDataSource
+        @RawPool
         @Singleton
         public DataSource rawPool() {
             return pool;
@@ -188,6 +199,23 @@ class PersistenceConfigurationProducerTest {
 
         @Produces
         @Singleton
+        public DataSource dataSource() {
+            return new TransactionAwareDataSourceProxy(pool);
+        }
+
+        @PreDestroy
+        void close() {
+            pool.close();
+        }
+    }
+
+    @Singleton
+    public static class ApplicationScopedProxyConfig {
+
+        final HikariDataSource pool = pool("producer-app-proxy");
+
+        @Produces
+        @ApplicationScoped
         public DataSource dataSource() {
             return new TransactionAwareDataSourceProxy(pool);
         }

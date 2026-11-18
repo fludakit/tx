@@ -6,9 +6,9 @@ Container-agnostic declarative and programmatic transaction boundaries backed di
 
 ## Modules
 
-- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions), the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding, and the `@RawDataSource` qualifier.
+- `fluda-tx-core`: API (`TransactionManager`, `TransactionalOperations`, `TransactionStatus`, exceptions), the `support` package holding `AbstractTransactionOperations`, `DefaultTransactionStatus`, and the scope binding, and the `@RawPool` qualifier.
 - `fluda-tx-cdi`: CDI extension and `@Transactional` interceptor.
-- `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager`, its CDI producer, and `TransactionAwareDataSourceProxy`.
+- `fluda-tx-jdbc`: Resource-local `JdbcTransactionManager` and its CDI producer.
 - `fluda-tx-jpa`: Resource-local `JpaTransactionManager` and `JpaHelper`, plus the CDI producers for the `PersistenceConfiguration`, the `EntityManagerFactory`, and the transaction manager.
 
 ## Usage
@@ -17,7 +17,7 @@ Wrap your `DataSource` with `TransactionAwareDataSourceProxy`, register a `JdbcT
 
 ```java
 import io.github.fludakit.tx.jdbc.JdbcTransactionManager;
-import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 import jakarta.transaction.Transactional;
 
 DataSource raw = ...; // your connection pool
@@ -55,11 +55,11 @@ public DataSource dataSource() {
 }
 ```
 
-Add a `@RawDataSource` producer as soon as JPA is on the classpath: a persistence unit must bind
+Add a `@RawPool` producer as soon as JPA is on the classpath: a persistence unit must bind
 the pool itself, so `PersistenceConfigurationProducer` rejects the proxy.
 
 ```java
-@Produces @RawDataSource
+@Produces @RawPool
 public DataSource pool() {
     return hikariDataSource;                              // the pool itself
 }

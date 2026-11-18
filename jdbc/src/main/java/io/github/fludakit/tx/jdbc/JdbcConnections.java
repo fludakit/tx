@@ -6,7 +6,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Connection lifecycle helpers shared by the JDBC manager and the transaction-aware proxy.
+ * Connection lifecycle helpers for the JDBC transaction manager.
  *
  * <p>Every connection these classes hand out comes from a pool, so "closing" it really means
  * returning it in a state the next borrower can use: auto-commit restored, the read-only hint

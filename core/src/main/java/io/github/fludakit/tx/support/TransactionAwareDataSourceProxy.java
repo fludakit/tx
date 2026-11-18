@@ -1,9 +1,8 @@
-package io.github.fludakit.tx.jdbc;
+package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.TransactionStatus;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -89,7 +88,6 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection(String username, String password) throws SQLException {
         TransactionStatus<?> status = activeStatus();
         if (status == null) {
-            // no transaction to join: the credentials belong to the pool
             return delegate.getConnection(username, password);
         }
         Connection connection = resolveConnection(status);
@@ -120,14 +118,13 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             connection.setAutoCommit(false);
             Connection bound = status.putAttributeIfAbsent(Connection.class, connection);
             if (bound != null) {
-                // another participant bound a connection first - use the winner's and release ours
-                JdbcConnections.close(connection);
+                close(connection);
                 return bound;
             }
             status.registerSynchronization(new ConnectionJoining(connection));
             return connection;
         } catch (RuntimeException | SQLException ex) {
-            JdbcConnections.close(connection);
+            close(connection);
             throw ex;
         }
     }
@@ -146,6 +143,26 @@ public class TransactionAwareDataSourceProxy implements DataSource {
                         throw e.getCause();
                     }
                 });
+    }
+
+    private static void release(Connection connection) {
+        try {
+            if (!connection.isClosed() && !connection.getAutoCommit()) {
+                connection.setAutoCommit(true);
+            }
+        } catch (SQLException ex) {
+            LOG.log(Level.WARNING, "Failed to reset the JDBC connection before release", ex);
+        } finally {
+            close(connection);
+        }
+    }
+
+    private static void close(Connection connection) {
+        try {
+            connection.close();
+        } catch (SQLException ex) {
+            LOG.log(Level.WARNING, "Failed to release the JDBC connection", ex);
+        }
     }
 
     @Override
@@ -213,7 +230,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             } catch (SQLException ex) {
                 LOG.log(Level.WARNING, "Failed to complete the joined JDBC connection", ex);
             } finally {
-                JdbcConnections.release(connection, false);
+                release(connection);
             }
         }
     }
