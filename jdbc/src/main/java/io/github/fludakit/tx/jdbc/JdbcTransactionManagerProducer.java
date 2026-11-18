@@ -3,8 +3,6 @@ package io.github.fludakit.tx.jdbc;
 import io.github.fludakit.tx.support.RawPool;
 import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
-import java.lang.reflect.Method;
-import java.sql.SQLException;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -80,17 +78,13 @@ public class JdbcTransactionManagerProducer {
     }
 
     private DataSource resolveDataSource() {
-        DataSource defaultDataSource = dataSources.isUnsatisfied() ? null : produced(dataSources.get());
+        DataSource defaultDataSource = dataSources.isUnsatisfied() ? null : dataSources.get();
         if (defaultDataSource instanceof TransactionAwareDataSourceProxy) {
             // the application already exposes the transaction-aware view: share it
             return defaultDataSource;
         }
         if (!rawDataSources.isUnsatisfied()) {
-            DataSource pool = produced(rawDataSources.get());
-            if (pool instanceof TransactionAwareDataSourceProxy proxy) {
-                return proxy.getDelegate();
-            }
-            return pool;
+            return rawDataSources.get();
         }
         if (defaultDataSource != null) {
             return defaultDataSource;
@@ -98,43 +92,5 @@ public class JdbcTransactionManagerProducer {
         throw new IllegalStateException(
                 "No DataSource bean is available: declare a DataSource producer (a connection pool, "
                         + "or a TransactionAwareDataSourceProxy over one)");
-    }
-
-    /**
-     * The object the producer returned. A normal-scoped client proxy implements {@code DataSource}
-     * only, so {@code instanceof TransactionAwareDataSourceProxy} has to see the instance behind it.
-     * Otherwise the manager would open connections from that client proxy instead of the pool.
-     */
-    private static DataSource produced(DataSource dataSource) {
-        Class<?> proxyType = clientProxyType(dataSource);
-        if (proxyType == null) {
-            return dataSource;
-        }
-        try {
-            Object metadata = proxyType.getMethod("getMetadata").invoke(dataSource);
-            Method contextualInstance = metadata.getClass().getMethod("getContextualInstance");
-            Object instance = contextualInstance.invoke(metadata);
-            if (instance == null) {
-                dataSource.isWrapperFor(DataSource.class);
-                instance = contextualInstance.invoke(metadata);
-            }
-            if (instance instanceof DataSource actual) {
-                return actual;
-            }
-        } catch (ReflectiveOperationException | SQLException ex) {
-            return dataSource;
-        }
-        return dataSource;
-    }
-
-    private static Class<?> clientProxyType(Object bean) {
-        for (Class<?> type = bean.getClass(); type != null; type = type.getSuperclass()) {
-            for (Class<?> iface : type.getInterfaces()) {
-                if ("org.jboss.weld.proxy.WeldClientProxy".equals(iface.getName())) {
-                    return iface;
-                }
-            }
-        }
-        return null;
     }
 }

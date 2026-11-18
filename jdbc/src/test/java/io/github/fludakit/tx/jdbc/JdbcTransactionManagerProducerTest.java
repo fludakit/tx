@@ -6,7 +6,6 @@ import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import jakarta.annotation.PreDestroy;
-import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Singleton;
 import org.jboss.weld.environment.se.Weld;
@@ -47,17 +46,6 @@ class JdbcTransactionManagerProducerTest {
             JdbcTransactionManager manager = container.select(JdbcTransactionManager.class).get();
 
             assertSame(config.pool, manager.getDataSource());
-        }
-    }
-
-    @Test
-    void reusesAnApplicationScopedProxyInsteadOfWrappingIt() {
-        try (WeldContainer container = container(ApplicationScopedProxyConfig.class)) {
-            ApplicationScopedProxyConfig config = container.select(ApplicationScopedProxyConfig.class).get();
-            JdbcTransactionManager manager = container.select(JdbcTransactionManager.class).get();
-
-            assertSame(config.pool, manager.getDataSource(),
-                    "the manager must open connections from the pool, not from a client proxy");
         }
     }
 
@@ -160,23 +148,6 @@ class JdbcTransactionManagerProducerTest {
         @Singleton
         public DataSource dataSource() {
             return proxy;
-        }
-
-        @PreDestroy
-        void close() {
-            pool.close();
-        }
-    }
-
-    @Singleton
-    public static class ApplicationScopedProxyConfig {
-
-        final HikariDataSource pool = pool("producer-app-proxy");
-
-        @Produces
-        @ApplicationScoped
-        public DataSource dataSource() {
-            return new TransactionAwareDataSourceProxy(pool);
         }
 
         @PreDestroy

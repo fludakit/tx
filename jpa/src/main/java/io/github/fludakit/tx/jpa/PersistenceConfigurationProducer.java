@@ -120,15 +120,11 @@ public class PersistenceConfigurationProducer {
     }
 
     private static DataSource requirePool(DataSource dataSource, String qualifier) {
-        if (isTransactionAwareProxy(dataSource)) {
+        if (dataSource instanceof TransactionAwareDataSourceProxy) {
             throw new IllegalStateException("The " + qualifier + " DataSource is a "
                     + "TransactionAwareDataSourceProxy"
                     + "; a persistence unit must be built over the raw pool itself");
         }
         return dataSource;
-    }
-
-    private static boolean isTransactionAwareProxy(DataSource dataSource) {
-        return dataSource instanceof TransactionAwareDataSourceProxy;
     }
 }
