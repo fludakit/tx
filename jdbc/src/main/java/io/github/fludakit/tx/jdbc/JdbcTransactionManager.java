@@ -5,6 +5,7 @@ import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.support.AbstractTransactionOperations;
 import io.github.fludakit.tx.support.DefaultTransactionStatus;
+import io.github.fludakit.tx.support.JdbcConnections;
 import io.github.fludakit.tx.support.JdbcSavepointManager;
 import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 

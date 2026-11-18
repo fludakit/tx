@@ -118,13 +118,13 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             connection.setAutoCommit(false);
             Connection bound = status.putAttributeIfAbsent(Connection.class, connection);
             if (bound != null) {
-                close(connection);
+                JdbcConnections.close(connection);
                 return bound;
             }
             status.registerSynchronization(new ConnectionJoining(connection));
             return connection;
         } catch (RuntimeException | SQLException ex) {
-            close(connection);
+            JdbcConnections.close(connection);
             throw ex;
         }
     }
@@ -143,26 +143,6 @@ public class TransactionAwareDataSourceProxy implements DataSource {
                         throw e.getCause();
                     }
                 });
-    }
-
-    private static void release(Connection connection) {
-        try {
-            if (!connection.isClosed() && !connection.getAutoCommit()) {
-                connection.setAutoCommit(true);
-            }
-        } catch (SQLException ex) {
-            LOG.log(Level.WARNING, "Failed to reset the JDBC connection before release", ex);
-        } finally {
-            close(connection);
-        }
-    }
-
-    private static void close(Connection connection) {
-        try {
-            connection.close();
-        } catch (SQLException ex) {
-            LOG.log(Level.WARNING, "Failed to release the JDBC connection", ex);
-        }
     }
 
     @Override
@@ -230,7 +210,7 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             } catch (SQLException ex) {
                 LOG.log(Level.WARNING, "Failed to complete the joined JDBC connection", ex);
             } finally {
-                release(connection);
+                JdbcConnections.release(connection, false);
             }
         }
     }

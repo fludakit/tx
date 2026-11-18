@@ -41,7 +41,7 @@ Consequences:
 | Package                     | Contents                                                       | Visibility      |
 |-----------------------------|----------------------------------------------------------------|-----------------|
 | `io.github.fludakit.tx`     | API: definition, status, manager, operations, savepoints, exceptions | public, application-facing |
-| `io.github.fludakit.tx.support` | Runtime: the template, the status implementation, the scope holder, `@RawPool`, `TransactionAwareDataSourceProxy` | public |
+| `io.github.fludakit.tx.support` | Runtime: the template, the status implementation, the scope holder, `@RawPool`, `TransactionAwareDataSourceProxy`, `JdbcConnections` | public |
 | `io.github.fludakit.tx.jdbc` | `JdbcTransactionManager`, `JdbcTransactionManagerProducer` | public |
 | `io.github.fludakit.tx.jpa`  | `JpaTransactionManager`, `JpaHelper`, `EntityManagerProducer`, the persistence and factory producers, `PersistenceConfigurationCustomizer`, `ConnectionExtractor` | public          |
 | `io.github.fludakit.tx.cdi`  | `@Transactional` interceptor, `@TransactionScoped` context, transactional event dispatch, metadata registry | public |
