@@ -8,7 +8,7 @@ import java.util.logging.Logger;
 /**
  * Connection lifecycle helpers for the JDBC transaction manager.
  *
- * <p>Every connection these classes hand out comes from a pool, so "closing" it really means
+ * <p>Every connection the JDBC transaction manager hands out comes from a pool, so "closing" it really means
  * returning it in a state the next borrower can use: auto-commit restored, the read-only hint
  * cleared, and only then {@code close()} called. Failing to reset is logged, not thrown — a broken
  * reset must not mask the transaction's own outcome — and {@code close()} always runs.</p>
