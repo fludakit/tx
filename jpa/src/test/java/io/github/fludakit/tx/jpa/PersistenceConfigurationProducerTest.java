@@ -1,8 +1,8 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.RawDataSource;
+import io.github.fludakit.tx.support.RawPool;
 import io.github.fludakit.tx.it.jpa.TestEntity;
-import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -146,7 +146,7 @@ class PersistenceConfigurationProducerTest {
         final DataSource proxy = new TransactionAwareDataSourceProxy(pool);
 
         @Produces
-        @RawDataSource
+        @RawPool
         @Singleton
         public DataSource rawPool() {
             return pool;

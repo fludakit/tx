@@ -2,8 +2,8 @@ package io.github.fludakit.tx.it.jpa;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
-import io.github.fludakit.tx.RawDataSource;
-import io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy;
+import io.github.fludakit.tx.support.RawPool;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 import io.github.fludakit.tx.jpa.PersistenceConfigurationCustomizer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
@@ -32,7 +32,7 @@ public class JpaTestConfig implements PersistenceConfigurationCustomizer {
     }
 
     @Produces
-    @RawDataSource
+    @RawPool
     @ApplicationScoped
     public DataSource rawPool() {
         return rawPool;

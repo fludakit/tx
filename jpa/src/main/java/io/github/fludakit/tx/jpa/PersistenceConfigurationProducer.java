@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.jpa;
 
-import io.github.fludakit.tx.RawDataSource;
+import io.github.fludakit.tx.support.RawPool;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
 import java.util.logging.Logger;
 import javax.sql.DataSource;
@@ -15,7 +16,7 @@ import jakarta.persistence.PersistenceConfiguration;
  * CDI producer for the {@link PersistenceConfiguration} the persistence unit is built from.
  *
  * <p>The configuration always names a unit and is always bound to the application's pool — the
- * {@link DataSource} qualified with {@link RawDataSource} when there is one, otherwise the default
+ * {@link DataSource} qualified with {@link io.github.fludakit.tx.support.RawPool} when there is one, otherwise the default
  * unqualified {@code DataSource}. The pool instance is carried under the
  * {@link PersistenceConfiguration#JDBC_DATASOURCE} property and again under the Hibernate
  * property {@code hibernate.connection.datasource}, which is what providers such as Hibernate 7 read
@@ -48,8 +49,6 @@ public class PersistenceConfigurationProducer {
     /** The Hibernate property carrying the resource-local {@link DataSource} instance. */
     private static final String HIBERNATE_DATA_SOURCE = "hibernate.connection.datasource";
 
-    private static final String TRANSACTION_AWARE_PROXY = "io.github.fludakit.tx.jdbc.TransactionAwareDataSourceProxy";
-
     private static final Logger LOG = Logger.getLogger(PersistenceConfigurationProducer.class.getName());
 
     private final Instance<DataSource> rawDataSources;
@@ -57,12 +56,12 @@ public class PersistenceConfigurationProducer {
     private final Instance<PersistenceConfigurationCustomizer> customizers;
 
     /**
-     * @param rawDataSources the pools qualified with {@link RawDataSource}, possibly unsatisfied
+     * @param rawDataSources the pools qualified with {@link io.github.fludakit.tx.support.RawPool}, possibly unsatisfied
      * @param dataSources    the default pools, possibly unsatisfied
      * @param customizers    the application's customizers, possibly none
      */
     @Inject
-    PersistenceConfigurationProducer(@RawDataSource Instance<DataSource> rawDataSources,
+    PersistenceConfigurationProducer(@RawPool Instance<DataSource> rawDataSources,
                                      Instance<DataSource> dataSources,
                                      Instance<PersistenceConfigurationCustomizer> customizers) {
         this.rawDataSources = rawDataSources;
@@ -110,36 +109,22 @@ public class PersistenceConfigurationProducer {
 
     private DataSource resolveDataSource() {
         if (!rawDataSources.isUnsatisfied()) {
-            return requirePool(rawDataSources.get(), "@RawDataSource");
+            return requirePool(rawDataSources.get(), "@RawPool");
         }
         if (!dataSources.isUnsatisfied()) {
             return requirePool(dataSources.get(), "the default unqualified");
         }
         throw new IllegalStateException(
                 "No DataSource bean is available: declare a DataSource producer, qualified with "
-                        + "@RawDataSource when a TransactionAwareDataSourceProxy is the default DataSource");
+                        + "@RawPool when a TransactionAwareDataSourceProxy is the default DataSource");
     }
 
     private static DataSource requirePool(DataSource dataSource, String qualifier) {
-        if (isTransactionAwareProxy(dataSource)) {
+        if (dataSource instanceof TransactionAwareDataSourceProxy) {
             throw new IllegalStateException("The " + qualifier + " DataSource is a "
                     + "TransactionAwareDataSourceProxy"
                     + "; a persistence unit must be built over the raw pool itself");
         }
         return dataSource;
-    }
-
-    /**
-     * Checks the type by name: this module must not depend on {@code fluda-tx-jdbc}, because that
-     * module's bean archive also produces a {@code TransactionManager} and would make every
-     * injection point for the interface ambiguous.
-     */
-    private static boolean isTransactionAwareProxy(DataSource dataSource) {
-        for (Class<?> type = dataSource.getClass(); type != null; type = type.getSuperclass()) {
-            if (TRANSACTION_AWARE_PROXY.equals(type.getName())) {
-                return true;
-            }
-        }
-        return false;
     }
 }

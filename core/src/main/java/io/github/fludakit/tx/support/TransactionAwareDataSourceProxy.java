@@ -1,9 +1,8 @@
-package io.github.fludakit.tx.jdbc;
+package io.github.fludakit.tx.support;
 
 import io.github.fludakit.tx.TransactionStatus;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.TransactionSystemException;
-import io.github.fludakit.tx.support.TransactionStatusHolder;
 
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationTargetException;
@@ -89,7 +88,6 @@ public class TransactionAwareDataSourceProxy implements DataSource {
     public Connection getConnection(String username, String password) throws SQLException {
         TransactionStatus<?> status = activeStatus();
         if (status == null) {
-            // no transaction to join: the credentials belong to the pool
             return delegate.getConnection(username, password);
         }
         Connection connection = resolveConnection(status);
@@ -120,7 +118,6 @@ public class TransactionAwareDataSourceProxy implements DataSource {
             connection.setAutoCommit(false);
             Connection bound = status.putAttributeIfAbsent(Connection.class, connection);
             if (bound != null) {
-                // another participant bound a connection first - use the winner's and release ours
                 JdbcConnections.close(connection);
                 return bound;
             }

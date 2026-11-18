@@ -1,6 +1,7 @@
 package io.github.fludakit.tx.jdbc;
 
-import io.github.fludakit.tx.RawDataSource;
+import io.github.fludakit.tx.support.RawPool;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
@@ -102,7 +103,7 @@ class JdbcTransactionManagerProducerTest {
         final DataSource proxy = new TransactionAwareDataSourceProxy(pool);
 
         @Produces
-        @RawDataSource
+        @RawPool
         @Singleton
         public DataSource rawPool() {
             return pool;

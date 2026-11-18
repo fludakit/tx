@@ -30,7 +30,7 @@ cd tx
 .
 ├── core/                   # fluda-tx-core — TransactionManager SPI, TransactionalOperations, TransactionStatus, status/scope support
 ├── cdi/                    # fluda-tx-cdi — CDI interceptor for @Transactional, @TransactionScoped context
-├── jdbc/                   # fluda-tx-jdbc — JdbcTransactionManager, TransactionAwareDataSourceProxy
+├── jdbc/                   # fluda-tx-jdbc — JdbcTransactionManager
 └── jpa/                    # fluda-tx-jpa — JpaTransactionManager, EntityManager CDI producer
 ```
 

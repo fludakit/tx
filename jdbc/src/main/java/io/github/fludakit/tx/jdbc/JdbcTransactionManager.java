@@ -5,7 +5,9 @@ import io.github.fludakit.tx.TransactionSystemException;
 import io.github.fludakit.tx.TransactionSynchronization;
 import io.github.fludakit.tx.support.AbstractTransactionOperations;
 import io.github.fludakit.tx.support.DefaultTransactionStatus;
+import io.github.fludakit.tx.support.JdbcConnections;
 import io.github.fludakit.tx.support.JdbcSavepointManager;
+import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -43,7 +45,7 @@ import javax.sql.DataSource;
  *
  * <p>Under CDI there is nothing to construct — {@code JdbcTransactionManagerProducer} resolves the
  * {@code DataSource} (reusing an unqualified {@code TransactionAwareDataSourceProxy}, otherwise the
- * {@code @RawDataSource} pool or the default {@code DataSource}) and exposes the manager as a
+ * {@code @RawPool} pool or the default {@code DataSource}) and exposes the manager as a
  * {@code @Singleton} bean, so either the concrete type or the {@code TransactionManager} interface
  * can be injected:</p>
  *

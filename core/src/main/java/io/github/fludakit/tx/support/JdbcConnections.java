@@ -1,4 +1,4 @@
-package io.github.fludakit.tx.jdbc;
+package io.github.fludakit.tx.support;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -6,14 +6,16 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Connection lifecycle helpers shared by the JDBC manager and the transaction-aware proxy.
+ * Connection lifecycle helpers for the JDBC transaction manager and
+ * {@link TransactionAwareDataSourceProxy}.
  *
- * <p>Every connection these classes hand out comes from a pool, so "closing" it really means
+ * <p>Every connection those callers hand out comes from a pool, so "closing" it really means
  * returning it in a state the next borrower can use: auto-commit restored, the read-only hint
- * cleared, and only then {@code close()} called. Failing to reset is logged, not thrown — a broken
- * reset must not mask the transaction's own outcome — and {@code close()} always runs.</p>
+ * cleared when it was set, and only then {@code close()} called. Failing to reset is logged, not
+ * thrown — a broken reset must not mask the transaction's own outcome — and {@code close()} always
+ * runs.</p>
  */
-final class JdbcConnections {
+public final class JdbcConnections {
 
     private static final Logger LOG = Logger.getLogger(JdbcConnections.class.getName());
 
@@ -27,7 +29,7 @@ final class JdbcConnections {
      * @param connection    the connection to release
      * @param resetReadOnly whether the read-only hint was set and must be cleared
      */
-    static void release(Connection connection, boolean resetReadOnly) {
+    public static void release(Connection connection, boolean resetReadOnly) {
         try {
             if (!connection.isClosed() && !connection.getAutoCommit()) {
                 connection.setAutoCommit(true);
@@ -43,7 +45,7 @@ final class JdbcConnections {
     }
 
     /** Closes the connection, logging rather than throwing a failure. */
-    static void close(Connection connection) {
+    public static void close(Connection connection) {
         try {
             connection.close();
         } catch (SQLException ex) {
