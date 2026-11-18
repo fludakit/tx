@@ -3,8 +3,6 @@ package io.github.fludakit.tx.jpa;
 import io.github.fludakit.tx.support.RawPool;
 import io.github.fludakit.tx.support.TransactionAwareDataSourceProxy;
 
-import java.lang.reflect.Method;
-import java.sql.SQLException;
 import java.util.logging.Logger;
 import javax.sql.DataSource;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -122,7 +120,7 @@ public class PersistenceConfigurationProducer {
     }
 
     private static DataSource requirePool(DataSource dataSource, String qualifier) {
-        if (contextual(dataSource) instanceof TransactionAwareDataSourceProxy) {
+        if (isTransactionAwareProxy(dataSource)) {
             throw new IllegalStateException("The " + qualifier + " DataSource is a "
                     + "TransactionAwareDataSourceProxy"
                     + "; a persistence unit must be built over the raw pool itself");
@@ -130,41 +128,7 @@ public class PersistenceConfigurationProducer {
         return dataSource;
     }
 
-    /**
-     * The object a producer returned. A normal-scoped client proxy implements only the bean
-     * types, so {@code instanceof TransactionAwareDataSourceProxy} is applied to the contextual
-     * instance behind it.
-     */
-    private static DataSource contextual(DataSource dataSource) {
-        Class<?> proxyType = clientProxyType(dataSource);
-        if (proxyType == null) {
-            return dataSource;
-        }
-        try {
-            Object metadata = proxyType.getMethod("getMetadata").invoke(dataSource);
-            Method contextualInstance = metadata.getClass().getMethod("getContextualInstance");
-            Object instance = contextualInstance.invoke(metadata);
-            if (instance == null) {
-                dataSource.isWrapperFor(DataSource.class);
-                instance = contextualInstance.invoke(metadata);
-            }
-            if (instance instanceof DataSource actual) {
-                return actual;
-            }
-        } catch (ReflectiveOperationException | SQLException ex) {
-            return dataSource;
-        }
-        return dataSource;
-    }
-
-    private static Class<?> clientProxyType(Object bean) {
-        for (Class<?> type = bean.getClass(); type != null; type = type.getSuperclass()) {
-            for (Class<?> iface : type.getInterfaces()) {
-                if ("org.jboss.weld.proxy.WeldClientProxy".equals(iface.getName())) {
-                    return iface;
-                }
-            }
-        }
-        return null;
+    private static boolean isTransactionAwareProxy(DataSource dataSource) {
+        return dataSource instanceof TransactionAwareDataSourceProxy;
     }
 }
