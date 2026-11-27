@@ -1,0 +1,1542 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Container-agnostic declarative and programmatic transaction boundaries for Jakarta EE and CDI.">
+      
+      
+      
+        <link rel="canonical" href="https://fludakit.github.io/tx/transaction-model/">
+      
+      
+        <link rel="prev" href="../advanced/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="https://fludakit.github.io/assets/favicon.ico">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Transaction Model (design) - FluDa Transaction Support</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="amber">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-synchronous-transaction-model" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="FluDa Transaction Support" class="md-header__button md-logo" aria-label="FluDa Transaction Support" data-md-component="logo">
+      
+  <img src="https://fludakit.github.io/assets/fluda-badge-light.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            FluDa Transaction Support
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Transaction Model (design)
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="amber"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="amber"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/fludakit/tx" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fludakit/tx
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../jdbc/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  JDBC Implementation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../jpa/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  JPA Implementation
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../advanced/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Mixing JDBC and JPA
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Transaction Model (design)
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="https://fludakit.github.io/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  FluDa Toolkit
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="FluDa Transaction Support" class="md-nav__button md-logo" aria-label="FluDa Transaction Support" data-md-component="logo">
+      
+  <img src="https://fludakit.github.io/assets/fluda-badge-light.svg" alt="logo">
+
+    </a>
+    FluDa Transaction Support
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/fludakit/tx" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    fludakit/tx
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jdbc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JDBC Implementation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../jpa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    JPA Implementation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../advanced/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mixing JDBC and JPA
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Transaction Model (design)
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Transaction Model (design)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-one-idea" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one idea
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-api-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The API surface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The API surface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transactiondefinition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionDefinition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transactionstatust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionStatus&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transactionmanagert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionManager&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#abstracttransactionoperationst" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AbstractTransactionOperations&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#propagation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propagation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#savepoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Savepoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#synchronizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Synchronizations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transactional-cdi-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transactional CDI events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-each-module-contributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What each module contributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-on-purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (on purpose)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://fludakit.github.io/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FluDa Toolkit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-one-idea" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The one idea
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-api-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The API surface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The API surface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#transactiondefinition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionDefinition
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transactionstatust" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionStatus&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#transactionmanagert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TransactionManager&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#abstracttransactionoperationst" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AbstractTransactionOperations&lt;T&gt;
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#propagation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Propagation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#savepoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Savepoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#synchronizations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Synchronizations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#transactional-cdi-events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Transactional CDI events
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-each-module-contributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What each module contributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#out-of-scope-on-purpose" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Out of scope (on purpose)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="the-synchronous-transaction-model">The synchronous transaction model<a class="headerlink" href="#the-synchronous-transaction-model" title="Permanent link">&para;</a></h1>
+<p>This document describes the design of <code>fludakit-tx</code> after the resource-local redesign. It is
+deliberately narrow: <strong>synchronous, resource-local transactions only</strong>. There is no reactive
+API, no <code>@Async</code>, no distributed/XA coordination, and no connection-pool abstraction layer.</p>
+<p>The design borrows its core idea from Micronaut Data's <code>data-tx</code> module
+(<code>io.micronaut.transaction</code>), specifically the synchronous path:
+<code>SynchronousTransactionManager</code>, <code>TransactionOperations</code>, <code>TransactionStatus</code>,
+<code>AbstractTransactionOperations</code>, <code>DefaultTransactionStatus</code>, <code>SavepointManager</code>,
+<code>TransactionSynchronization</code>. Everything below either mirrors that model or explains why this
+codebase's version is smaller.</p>
+<h2 id="the-one-idea">The one idea<a class="headerlink" href="#the-one-idea" title="Permanent link">&para;</a></h2>
+<blockquote>
+<p>A transaction <strong>is</strong> a status object.</p>
+</blockquote>
+<p>There is exactly one object per transaction. It carries the transaction definition, the bound
+resource, the rollback-only flags, the registered synchronizations, the optional savepoint, and
+the completion state. That object is what the interceptor creates, what the template binds to
+the current thread/scope, and what the unit of work receives.</p>
+<p>Everything else in the model exists to create, bind, complete, or observe that object:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>TransactionDefinition ──┐
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>                        ├──&gt; TransactionStatus ──&gt; unit of work ──&gt; commit | rollback
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>            resource ───┘
+</span></code></pre></div>
+<p>Consequences:</p>
+<ul>
+<li>No separate <code>TransactionContext</code> alongside a passive <code>TransactionStatus</code>. That split made
+  the status a record and forced the lifecycle state machine to live somewhere else.</li>
+<li>No <code>TransactionTemplate</code> owned by the front-ends. The template is the manager itself.</li>
+<li>Propagation is not a <code>switch</code> over a passive object; the status kind decides what "commit",
+  "rollback", and "setRollbackOnly" mean.</li>
+</ul>
+<h2 id="layers">Layers<a class="headerlink" href="#layers" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Contents</th>
+<th>Visibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>io.github.fludakit.tx</code></td>
+<td>API: definition, status, manager, operations, savepoints, exceptions</td>
+<td>public, application-facing</td>
+</tr>
+<tr>
+<td><code>io.github.fludakit.tx.support</code></td>
+<td>Runtime: the template, the status implementation, the scope holder, <code>@RawPool</code>, <code>TransactionAwareDataSourceProxy</code>, <code>JdbcConnections</code></td>
+<td>public</td>
+</tr>
+<tr>
+<td><code>io.github.fludakit.tx.jdbc</code></td>
+<td><code>JdbcTransactionManager</code>, <code>JdbcTransactionManagerProducer</code></td>
+<td>public</td>
+</tr>
+<tr>
+<td><code>io.github.fludakit.tx.jpa</code></td>
+<td><code>JpaTransactionManager</code>, <code>JpaHelper</code>, <code>EntityManagerProducer</code>, the persistence and factory producers, <code>PersistenceConfigurationCustomizer</code>, <code>ConnectionExtractor</code></td>
+<td>public</td>
+</tr>
+<tr>
+<td><code>io.github.fludakit.tx.cdi</code></td>
+<td><code>@Transactional</code> interceptor, <code>@TransactionScoped</code> context, transactional event dispatch, metadata registry</td>
+<td>public</td>
+</tr>
+</tbody>
+</table>
+<p>Dependencies point one way: <code>jdbc</code>, <code>jpa</code>, <code>cdi</code> → <code>core</code>. <code>core</code> knows nothing about JDBC,
+JPA, or CDI (the <code>jakarta.enterprise</code> dependency is <code>provided</code> and only used for
+<code>TransactionScoped</code> type references in documentation).</p>
+<h2 id="the-api-surface">The API surface<a class="headerlink" href="#the-api-surface" title="Permanent link">&para;</a></h2>
+<h3 id="transactiondefinition"><code>TransactionDefinition</code><a class="headerlink" href="#transactiondefinition" title="Permanent link">&para;</a></h3>
+<p>Immutable transaction attributes: propagation (<code>Propagation</code>), <code>rollbackOn</code> /
+<code>dontRollbackOn</code>, and <code>readOnly</code>.</p>
+<p><code>Propagation</code> carries the six <code>jakarta.transaction.Transactional.TxType</code> behaviours plus
+<code>NESTED</code>, which Jakarta Transactions deliberately leaves out of the annotation. The CDI
+front-end resolves the annotation with <code>Propagation.of(TxType)</code>; <code>NESTED</code> is reachable only
+programmatically, through <code>executeNested(...)</code>.</p>
+<p>It owns the rollback decision: <code>rollbackOn(Throwable)</code> applies the configured rules and falls
+back to <code>RuntimeException</code>/<code>Error</code>, unwrapping <code>InvocationTargetException</code> and
+<code>ExecutionException</code> first. This is the rule set the Jakarta <code>@Transactional</code> specification
+prescribes, and it is also Spring's <code>TransactionTemplate</code> default — so the declarative and the
+programmatic front-end use the same rule set. They cannot disagree.</p>
+<p><code>withPropagation(...)</code> and <code>withReadOnly(...)</code> return copies; a definition is never mutated.</p>
+<h3 id="transactionstatust"><code>TransactionStatus&lt;T&gt;</code><a class="headerlink" href="#transactionstatust" title="Permanent link">&para;</a></h3>
+<p>The transaction handle. <code>T</code> is the resource type the manager binds (<code>Connection</code> for JDBC,
+<code>EntityManager</code> for JPA).</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>definition:       TransactionDefinition
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>resource:         T?                       // null outside an actual transaction
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>isNewTransaction: boolean                  // begun here, so completion belongs to this caller
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>isNestedTransaction: boolean               // savepoint-scoped section inside an outer transaction
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>isActualTransactionActive: boolean         // false for the shared no-transaction status
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>isRollbackOnly / isLocalRollbackOnly / isGlobalRollbackOnly
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>setRollbackOnly()
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>isCompleted
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>isSavepointSupported / createSavepoint / rollbackToSavepoint / releaseSavepoint
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>registerSynchronization(TransactionSynchronization)
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>getAttribute(Class&lt;A&gt;) / putAttributeIfAbsent(Class&lt;A&gt;, A)   // typed attribute slots
+</span></code></pre></div>
+<p>The typed attribute slots exist for exactly two consumers: <code>@TransactionScoped</code> bean stores and
+the CDI transactional event dispatcher. They are not a general-purpose map.</p>
+<h3 id="transactionmanagert"><code>TransactionManager&lt;T&gt;</code><a class="headerlink" href="#transactionmanagert" title="Permanent link">&para;</a></h3>
+<p><code>TransactionManager&lt;T&gt; extends TransactionalOperations&lt;T&gt;</code> — one object, two views. The
+operations view is what application code and the interceptor use; the manager view is the
+low-level demarcation API (<code>getTransaction</code>, <code>commit</code>, <code>rollback</code>) used for manual control and
+by the template itself.</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="n">Optional</span><span class="o">&lt;</span><span class="n">TransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;&gt;</span><span class="w"> </span><span class="nf">findTransactionStatus</span><span class="p">();</span><span class="w">  </span><span class="c1">// the ambient, actual transaction</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="n">T</span><span class="w"> </span><span class="nf">getResource</span><span class="p">();</span><span class="w">                                         </span><span class="c1">// its resource, or null</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="o">&lt;</span><span class="n">R</span><span class="o">&gt;</span><span class="w"> </span><span class="n">R</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="n">TransactionDefinition</span><span class="p">,</span><span class="w"> </span><span class="n">TransactionExecution</span><span class="o">&lt;</span><span class="n">T</span><span class="p">,</span><span class="n">R</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span><span class="kd">throws</span><span class="w"> </span><span class="n">Exception</span><span class="p">;</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="n">TransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="nf">getTransaction</span><span class="p">(</span><span class="n">TransactionDefinition</span><span class="p">);</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="kt">void</span><span class="w"> </span><span class="nf">commit</span><span class="p">(</span><span class="n">TransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">);</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="kt">void</span><span class="w"> </span><span class="nf">rollback</span><span class="p">(</span><span class="n">TransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="p">);</span>
+</span></code></pre></div>
+<h3 id="abstracttransactionoperationst"><code>AbstractTransactionOperations&lt;T&gt;</code><a class="headerlink" href="#abstracttransactionoperationst" title="Permanent link">&para;</a></h3>
+<p>The template. It implements propagation, suspension, begin/complete, synchronization
+dispatch, and completion state. Concrete managers implement only primitive hooks:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">protected</span><span class="w"> </span><span class="kd">abstract</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doBegin</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="kd">protected</span><span class="w"> </span><span class="kd">abstract</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doCommit</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="kd">protected</span><span class="w"> </span><span class="kd">abstract</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doRollback</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1">// optional</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doNestedBegin</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w">    </span><span class="c1">// default: create a savepoint</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doNestedCommit</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w">    </span><span class="c1">// default: release it</span>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doNestedRollback</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w">  </span><span class="c1">// default: roll back to it</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doSuspend</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w">         </span><span class="c1">// default: no-op</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="kd">protected</span><span class="w"> </span><span class="kt">void</span><span class="w"> </span><span class="nf">doResume</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w">          </span><span class="c1">// default: no-op</span>
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="kd">protected</span><span class="w"> </span><span class="n">SavepointManager</span><span class="w"> </span><span class="nf">newSavepointManager</span><span class="p">(</span><span class="n">DefaultTransactionStatus</span><span class="o">&lt;</span><span class="n">T</span><span class="o">&gt;</span><span class="w"> </span><span class="n">status</span><span class="p">);</span><span class="w"> </span><span class="c1">// default: null</span>
+</span></code></pre></div>
+<p>The hooks receive the concrete <code>DefaultTransactionStatus&lt;T&gt;</code> because they mutate the
+transaction's own state (resource, savepoint, rollback flags); <code>TransactionStatus</code> stays the
+read/participate surface for application code.</p>
+<p>The default nested hooks use the status's savepoint API, so a manager that supplies a
+<code>SavepointManager</code> gets <code>NESTED</code> propagation for free.</p>
+<h2 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h2>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>execute(definition, work)
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  │
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>  ├─ resolve ambient status
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>  ├─ dispatch on definition.propagation()
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  │
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a>  ├─ join:        work(existing.resource, existing)          // nothing to complete
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a>  ├─ no-tx:       work(null, NO_TRANSACTIONAL)               // SUPPORTS / NOT_SUPPORTED / NEVER
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>  └─ new tx:      create status ──► bind ──► doBegin
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a>                                     │
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a>                                     ├─ work
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a>                                     ├─ failure &amp;&amp; definition.rollbackOn(failure)? rollback : commit
+</span><span id="__span-4-12"><a id="__codelineno-4-12" name="__codelineno-4-12" href="#__codelineno-4-12"></a>                                     └─ unbind
+</span></code></pre></div>
+<p>Completing a new transaction:</p>
+<ol>
+<li>already completed → <code>IllegalTransactionStateException</code></li>
+<li>local rollback-only → rollback</li>
+<li>global rollback-only (a joined participant marked it) → rollback, then
+   <code>UnexpectedRollbackException</code> (the caller asked for a commit that cannot happen)</li>
+<li><code>beforeCommit(readOnly)</code> → <code>beforeCompletion()</code> → <code>doCommit</code></li>
+<li><code>afterCommit()</code> → <code>afterCompletion(COMMITTED)</code></li>
+<li><code>doCleanup</code> is not a hook: managers register a <code>TransactionSynchronization</code> for release, so
+   resource cleanup runs on the same path for every manager and cannot be forgotten.</li>
+</ol>
+<p>Failure while committing marks the status <code>UNKNOWN</code> and fires <code>afterCompletion(UNKNOWN)</code>; a
+failure while rolling back does the same. The transaction is completed exactly once.</p>
+<h2 id="propagation">Propagation<a class="headerlink" href="#propagation" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th><code>Propagation</code></th>
+<th>No ambient transaction</th>
+<th>Ambient transaction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>REQUIRED</code></td>
+<td>begin</td>
+<td>join</td>
+</tr>
+<tr>
+<td><code>REQUIRES_NEW</code></td>
+<td>begin</td>
+<td>suspend, begin, resume</td>
+</tr>
+<tr>
+<td><code>SUPPORTS</code></td>
+<td>no-tx status</td>
+<td>join</td>
+</tr>
+<tr>
+<td><code>NOT_SUPPORTED</code></td>
+<td>no-tx status</td>
+<td>suspend, no-tx status, resume</td>
+</tr>
+<tr>
+<td><code>MANDATORY</code></td>
+<td><code>IllegalTransactionStateException</code></td>
+<td>join</td>
+</tr>
+<tr>
+<td><code>NEVER</code></td>
+<td>no-tx status</td>
+<td><code>TransactionUsageException</code></td>
+</tr>
+<tr>
+<td><code>NESTED</code></td>
+<td>begin</td>
+<td>savepoint-scoped section</td>
+</tr>
+</tbody>
+</table>
+<p><code>join</code> hands the participant a <code>JoinedTransactionStatus</code> view over the running transaction. The
+view owns nothing: resource, definition, attributes, savepoints, and synchronizations all delegate
+to the owning status, <code>isNewTransaction()</code> is <code>false</code>, and the participant must not complete the
+transaction. A rollback-only mark on the view is escalated to the owner as <em>global</em> rollback-only,
+so the boundary that actually commits cannot silently ignore it. A <code>NESTED</code> section is the other
+case with its own status object, because it owns a savepoint and its rollback-only flag must stay
+local.</p>
+<p>Suspension is scope-based: the holder restores the outer status when the inner scope closes, so
+<code>REQUIRES_NEW</code> and <code>NOT_SUPPORTED</code> cannot leak. <code>doSuspend</code>/<code>doResume</code> exist for managers that
+must detach something physical (for example an OSIV-managed <code>EntityManager</code>); JDBC and JPA in
+this repository have nothing to detach and leave them as no-ops.</p>
+<h2 id="savepoints">Savepoints<a class="headerlink" href="#savepoints" title="Permanent link">&para;</a></h2>
+<p><code>SavepointManager</code> is a property of the <em>manager</em>, attached to each new status at begin time.
+<code>TransactionStatus</code> exposes <code>createSavepoint</code> / <code>rollbackToSavepoint</code> / <code>releaseSavepoint</code>
+over it, and reports <code>isSavepointSupported()</code>.</p>
+<p>This is a deliberate change from the old model, where the savepoint manager was passed into a
+static status factory: the capability now travels with the transaction it belongs to, and
+<code>NESTED</code> is just the default nested hooks over that capability.</p>
+<p><code>executeNested(work)</code> on <code>TransactionalOperations</code> is the programmatic entry point: it runs
+<code>NESTED</code> when a transaction is active and a plain <code>REQUIRED</code> transaction otherwise (there is
+nothing to nest into).</p>
+<h2 id="synchronizations">Synchronizations<a class="headerlink" href="#synchronizations" title="Permanent link">&para;</a></h2>
+<p><code>TransactionSynchronization</code> is the callback contract (<code>beforeCommit</code>, <code>beforeCompletion</code>,
+<code>afterCommit</code>, <code>afterCompletion(Status)</code>), with <code>Status</code> = <code>COMMITTED</code>, <code>ROLLED_BACK</code>,
+<code>UNKNOWN</code>. This replaces the old <code>TransactionCallback</code>, whose <code>CompletionStatus</code> duplicated the
+status state.</p>
+<p>A synchronization registered on a joined call is attached to the transaction that is actually
+running (the outer one), so it fires once, at the real boundary. A synchronization registered
+on a nested section is attached to the outer transaction as well: a savepoint section has no
+completion of its own.</p>
+<h2 id="transactional-cdi-events">Transactional CDI events<a class="headerlink" href="#transactional-cdi-events" title="Permanent link">&para;</a></h2>
+<p>Standard CDI transactional observers — <code>@Observes(during = TransactionPhase.AFTER_SUCCESS)</code>, and
+friends — are the public surface; no annotation of our own is involved. The container drives
+those observers itself only for JTA transactions, and the transaction model here is
+resource-local, so the CDI module bridges the gap:</p>
+<ol>
+<li>At deployment, <code>TransactionalCdiExtension</code> vetoes every observer whose phase is not
+   <code>IN_PROGRESS</code> and registers one replacement per observer. The replacement keeps the original
+   observed type and qualifier set — so CDI still does the type and qualifier matching — and
+   reports its own phase as <code>IN_PROGRESS</code>.</li>
+<li>When an event reaches a replacement, the payload is handed to the transaction's
+   <code>TransactionEventDispatcher</code> together with the observer and its declared phase.</li>
+<li>The dispatcher is a <code>TransactionSynchronization</code> that holds the payloads and delivers them at
+   the matching callback:</li>
+</ol>
+<table>
+<thead>
+<tr>
+<th>CDI phase</th>
+<th>Delivered from</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BEFORE_COMPLETION</code></td>
+<td><code>beforeCompletion()</code></td>
+<td>before commit or rollback</td>
+</tr>
+<tr>
+<td><code>AFTER_SUCCESS</code></td>
+<td><code>afterCommit()</code></td>
+<td>after the resource committed</td>
+</tr>
+<tr>
+<td><code>AFTER_FAILURE</code></td>
+<td><code>afterCompletion()</code></td>
+<td>after a rollback</td>
+</tr>
+<tr>
+<td><code>AFTER_COMPLETION</code></td>
+<td><code>afterCompletion()</code></td>
+<td>after either outcome</td>
+</tr>
+</tbody>
+</table>
+<p>The dispatcher installs itself on the first event of the transaction, bound to the status as a
+typed attribute, rather than being installed by the interceptor. That is what makes transactional
+observers work for <strong>every</strong> boundary: the <code>@Transactional</code> interceptor (<code>5. afterCommit()</code> →
+<code>afterCompletion(COMMITTED)</code> in the lifecycle above) and a programmatic
+<code>manager.execute(...)</code> call behave identically. A joined participant and a <code>NESTED</code> section share
+the attribute and the synchronization registration with the transaction that is actually running,
+so each event is delivered exactly once, at the real boundary.</p>
+<p>An event fired with no actual transaction active is dropped: a transactional observer must not run
+without a transaction. A failing observer is logged and neither stops the other observers nor
+changes the transaction's outcome.</p>
+<h2 id="exceptions">Exceptions<a class="headerlink" href="#exceptions" title="Permanent link">&para;</a></h2>
+<p>All failures derive from <code>TransactionException extends jakarta.transaction.TransactionalException</code>,
+so the declarative and programmatic paths satisfy the same contract.</p>
+<table>
+<thead>
+<tr>
+<th>Exception</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IllegalTransactionStateException</code></td>
+<td><code>MANDATORY</code> without a transaction; double completion; commit/rollback of a non-owning status</td>
+</tr>
+<tr>
+<td><code>TransactionUsageException</code></td>
+<td><code>NEVER</code> inside a transaction</td>
+</tr>
+<tr>
+<td><code>NestedTransactionNotSupportedException</code></td>
+<td><code>NESTED</code> without savepoint support</td>
+</tr>
+<tr>
+<td><code>UnexpectedRollbackException</code></td>
+<td>commit requested for a transaction marked rollback-only</td>
+</tr>
+<tr>
+<td><code>TransactionSystemException</code></td>
+<td>the resource failed to begin/commit/roll back (wraps the cause)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="what-each-module-contributes">What each module contributes<a class="headerlink" href="#what-each-module-contributes" title="Permanent link">&para;</a></h2>
+<p><strong>core</strong> — the model above, and nothing else. The scope holder (<code>TransactionStatusHolder</code>) binds
+the current status per thread: an <code>InheritableThreadLocal</code> carrying a revocable binding on
+JDK 21, a <code>ScopedValue</code> on JDK 25 (multi-release overlay). The binding is closed when the scope
+ends, so a transaction never outlives its boundary, even when a raw thread inherited it.</p>
+<p><strong>jdbc</strong> — <code>JdbcTransactionManager</code> opens a <code>Connection</code> in <code>doBegin</code> (auto-commit off, optional
+read-only), binds it to the status, and registers a synchronization that resets and closes it.
+Savepoints map to JDBC savepoints through the shared <code>JdbcSavepointManager</code>, which also tolerates
+drivers that reject <code>releaseSavepoint</code>. <code>TransactionAwareDataSourceProxy</code> lets plain
+<code>dataSource.getConnection()</code> code join the transaction; outside one it delegates to the pool,
+credentials included. <code>JdbcTransactionManagerProducer</code> reuses the application's unqualified
+<code>TransactionAwareDataSourceProxy</code> when it exposes one, so application code and the manager share a
+single proxy; otherwise it prefers a <code>@RawPool</code> bean and falls back to the default
+<code>DataSource</code>, wrapping that pool itself.</p>
+<p><strong>jpa</strong> — <code>JpaTransactionManager</code> creates an <code>EntityManager</code>, begins its <code>EntityTransaction</code>,
+binds both the <code>EntityManager</code> and the underlying <code>Connection</code> (so mixed JDBC/JPA code shares
+one transaction), and flushes on commit. Savepoints are JDBC savepoints over the extracted
+connection, through the same <code>JdbcSavepointManager</code>.</p>
+<p>The manager only borrows an <code>EntityManagerFactory</code>: it never creates, owns, or closes one. Under
+CDI the container supplies the whole chain:</p>
+<ul>
+<li><code>PersistenceConfigurationProducer</code> resolves the raw pool the same way the JDBC producer does
+  (<code>@RawPool</code> first, unqualified <code>DataSource</code> second), but rejects a
+  <code>TransactionAwareDataSourceProxy</code>: a persistence unit has to be built over the pool itself. It
+  binds the pool as <code>jakarta.persistence.nonJtaDataSource</code> and applies every
+  <code>PersistenceConfigurationCustomizer</code> bean. A customizer supplies what only the application knows:
+  managed classes, provider properties, and optionally the persistence unit name.</li>
+<li><code>EntityManagerFactoryProducer</code> creates the factory once and closes it at shutdown.</li>
+<li><code>JpaTransactionManagerProducer</code> produces the manager over that factory; a
+  <code>ConnectionExtractor</code> bean, when declared, replaces <code>ConnectionExtractor.DEFAULT</code>.</li>
+</ul>
+<p>No customizer is required; without one the persistence unit is named <code>__defaultPU</code> and has no
+managed classes, which suits an application that keeps its mappings in <code>persistence.xml</code>.</p>
+<p>In plain Java, build the factory yourself and pass it in:</p>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="n">EntityManagerFactory</span><span class="w"> </span><span class="n">emf</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Persistence</span><span class="p">.</span><span class="na">createEntityManagerFactory</span><span class="p">(</span><span class="s">"myPU"</span><span class="p">,</span><span class="w"> </span><span class="n">Map</span><span class="p">.</span><span class="na">of</span><span class="p">(</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">        </span><span class="s">"jakarta.persistence.nonJtaDataSource"</span><span class="p">,</span><span class="w"> </span><span class="n">pool</span><span class="p">));</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">JpaTransactionManager</span><span class="w"> </span><span class="n">txManager</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">JpaTransactionManager</span><span class="p">(</span><span class="n">emf</span><span class="p">);</span>
+</span></code></pre></div>
+<p>The <code>DataSource</code> is carried as the <code>jakarta.persistence.nonJtaDataSource</code> property, which is what
+providers such as Hibernate read in resource-local mode; the factory stays the caller's.</p>
+<p><strong>cdi</strong> — the interceptor looks up the definition the extension precomputed at deployment
+(resolving and caching it on first use for a class the extension never saw) and calls
+<code>manager.execute(definition, ...)</code>; the rest is container wiring. The
+<code>TransactionEventDispatcher</code> described above installs itself when the first transactional event is
+fired, so the interceptor carries no event code at all. <code>TransactionScopeContext</code> implements
+<code>@TransactionScoped</code> over the status attribute slots.</p>
+<p>The producer classes shipped with the library (<code>JdbcTransactionManagerProducer</code>,
+<code>PersistenceConfigurationProducer</code>, <code>EntityManagerFactoryProducer</code>,
+<code>JpaTransactionManagerProducer</code>) are <code>@ApplicationScoped</code> so that annotated discovery sees them:
+<code>@Singleton</code> is not a bean defining annotation, so a class scoped only <code>@Singleton</code> would be
+skipped and no producer registered at all. The beans they produce stay <code>@Singleton</code>, because they
+return non-proxyable objects — a factory, the concrete manager, a mutable configuration — and the
+application has to be able to inject those exact types. Declaring a single <code>ConnectionExtractor</code>
+bean replaces the default extraction strategy; declaring more than one fails at startup.</p>
+<h2 id="out-of-scope-on-purpose">Out of scope (on purpose)<a class="headerlink" href="#out-of-scope-on-purpose" title="Permanent link">&para;</a></h2>
+<ul>
+<li>reactive / async transaction propagation</li>
+<li><code>@Transactional</code> on <code>@TransactionScoped</code> beans, timeouts, isolation levels, names</li>
+<li>XA / distributed transactions, transaction suspension of a physical connection</li>
+<li>nested transactions as independent transactions (only savepoint semantics)</li>
+</ul>
+<p>These can be added later without reshaping the model: they are additional status kinds,
+additional manager hooks, or additional definition attributes.</p>
+
+
+
+
+
+
+
+  
+    
+  
+  
+    
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="November 18, 2026 06:58:17 UTC">November 18, 2026</span>
+  </span>
+
+    
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Created">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M14.47 15.08 11 13V7h1.5v5.25l3.08 1.83c-.41.28-.79.62-1.11 1m-1.39 4.84c-.36.05-.71.08-1.08.08-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8c0 .37-.03.72-.08 1.08.69.1 1.33.32 1.92.64.1-.56.16-1.13.16-1.72 0-5.5-4.5-10-10-10S2 6.5 2 12s4.47 10 10 10c.59 0 1.16-.06 1.72-.16-.32-.59-.54-1.23-.64-1.92M18 15v3h-3v2h3v3h2v-3h3v-2h-3v-3z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 31, 2026 02:21:33 UTC">October 31, 2026</span>
+  </span>
+
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../advanced/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Mixing JDBC and JPA">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Mixing JDBC and JPA
+              </div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/fludakit" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "navigation.footer", "search.suggest"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
