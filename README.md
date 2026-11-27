@@ -72,7 +72,7 @@ properties, and the persistence unit name. A single `ConnectionExtractor` bean r
 default connection extraction strategy.
 
 For transaction-phase callbacks and events, multiple DataSources, and mixing JPA with JDBC, see
-the [Transaction documentation](https://fludakit.github.io/documentation/tx/getting-started/).
+the [Transaction documentation](https://fludakit.github.io/tx/getting-started/).
 
 ## Building
 
@@ -82,4 +82,4 @@ the [Transaction documentation](https://fludakit.github.io/documentation/tx/gett
 
 ## Documentation
 
-See the [reference documentation site](https://fludakit.github.io/documentation/tx/getting-started/) for getting started, the JDBC and JPA implementations, and advanced topics.
+See the [reference documentation site](https://fludakit.github.io/tx/getting-started/) for getting started, the JDBC and JPA implementations, and advanced topics.
