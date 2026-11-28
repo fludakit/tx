@@ -27,3 +27,8 @@ Depending on the runtime, applications can participate in database transactions 
 - **CDI interceptor** — auto-registered by `fluda-tx-cdi`, drives the transaction lifecycle around `@Transactional` methods.
 
 See the [getting started](getting-started.md) guide to add dependencies and set up a minimal example, the [JDBC implementation](jdbc.md) page for DataSource-based transactions, the [JPA implementation](jpa.md) page for EntityManager-based transactions, and [advanced topics](advanced.md) for multiple DataSources and mixing JPA with JDBC.
+
+
+---
+
+[FluDa Toolkit — browse all modules](https://fludakit.github.io/){ .md-button .md-button--primary }
